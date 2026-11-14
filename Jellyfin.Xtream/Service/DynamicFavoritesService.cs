@@ -159,7 +159,7 @@ public class DynamicFavoritesService(
             .GroupBy(i => i.ExternalId)
             .ToDictionary(g => g.Key, g => g.First());
 
-        List<User> users = userManager.Users.ToList();
+        List<User> users = userManager.GetUsers().ToList();
         int added = 0;
         int removed = 0;
 
