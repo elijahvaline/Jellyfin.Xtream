@@ -9,7 +9,7 @@
     "versions": [
       {
         "changelog": "- Fix dynamic channels not being favorited on Jellyfin 12 (MissingMethodException on IUserManager.Users)\n- Plugin now targets Jellyfin 12.4 / .NET 10",
-        "checksum": "0a9be4586d5185b710fa050d53bbfaf5",
+        "checksum": "0ac4cd3fede061ccd2830ba7bb28862c",
         "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.3/jellyfin-xtream_0.8.1.3.zip",
         "targetAbi": "12.4.0.0",
         "timestamp": "2026-11-14T20:38:51Z",
