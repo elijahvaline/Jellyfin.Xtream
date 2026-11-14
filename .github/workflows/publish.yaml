@@ -5,6 +5,10 @@ on:
     types:
       - released
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build and attach assets to (run the workflow from that tag)"
+        required: true
 
 permissions:
   contents: write
@@ -32,10 +36,10 @@ jobs:
           done
           ls -l
       - name: Upload GitHub Release assets
-        uses: shogo82148/actions-upload-release-asset@v1.9.2
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./*
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: gh release upload "$TAG" ./* --clobber --repo "${{ github.repository }}"
   generate:
     runs-on: ubuntu-latest
     needs:
