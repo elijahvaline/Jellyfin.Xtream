@@ -8,6 +8,14 @@
     "owner": "elijahvaline",
     "versions": [
       {
+        "changelog": "Dynamic channels:\n- Category selection is now a search box with live suggestions instead of a dropdown\n- Hide checkbox in a rule's preview to always leave out a specific (e.g. stuck) channel\n- Preview loads automatically when editing an existing rule",
+        "checksum": "988dac014a365fed2127fc7fe051eb6f",
+        "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.4/jellyfin-xtream_0.8.1.4.zip",
+        "targetAbi": "12.4.0.0",
+        "timestamp": "2026-11-14T20:59:55Z",
+        "version": "0.8.1.4"
+      },
+      {
         "changelog": "- Fix dynamic channels not being favorited on Jellyfin 12 (MissingMethodException on IUserManager.Users)\n- Plugin now targets Jellyfin 12.4 / .NET 10",
         "checksum": "0ac4cd3fede061ccd2830ba7bb28862c",
         "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.3/jellyfin-xtream_0.8.1.3.zip",
