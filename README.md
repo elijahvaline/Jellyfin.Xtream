@@ -48,6 +48,22 @@ The following credentials should be set correctly in the `Credentials` plugin co
 1. Modify the channel numbers, names, and icons if desired.
 1. Click `Save` on the bottom of the page.
 
+### Dynamic channels
+
+Dynamic channels add Live TV channels based on a keyword instead of a fixed selection.
+This is useful for event channels that come and go (e.g. "vikings" or "NFL").
+
+1. Open the `Dynamic channels` configuration tab.
+1. Click `+` to add a rule.
+1. Enter a keyword. Matching is case-insensitive and checks whether the channel name contains the keyword.
+1. Optionally pick one or more categories to search in. With no categories selected, all categories are searched.
+1. (Optional) Click `Preview matches` to see which channels currently match.
+1. Click `Save` on the bottom of the page.
+
+Rules are checked again on every guide refresh.
+Channels that match are added to Live TV.
+Channels that no longer match are removed, and so are channels whose rule was disabled or deleted.
+
 ### Video On-Demand
 
 1. Open the `Video On-Demand` configuration tab.

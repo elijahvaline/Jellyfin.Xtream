@@ -199,6 +199,10 @@ const tabs = [
     name: 'TV overrides'
   },
   {
+    href: tab('XtreamLiveDynamic'),
+    name: 'Dynamic channels'
+  },
+  {
     href: tab('XtreamVod'),
     name: 'Video On-Demand',
   },

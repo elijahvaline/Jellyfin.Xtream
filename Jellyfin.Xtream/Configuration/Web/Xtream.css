@@ -34,3 +34,49 @@
 .overrides-table thead th:first-child {
   width: 0;
 }
+
+.dynamic-rule {
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  border-radius: 0.3em;
+  padding: 1em;
+  margin-bottom: 1.5em;
+}
+
+.dynamic-rule-header {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  margin-bottom: 0.8em;
+}
+
+.dynamic-rule-keyword {
+  flex: 1;
+}
+
+.dynamic-rule-enabled {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  white-space: nowrap;
+}
+
+.dynamic-rule-categories {
+  max-height: 14em;
+  overflow-y: auto;
+  margin: 0.5em 0;
+  padding: 0.3em;
+  border: 1px solid rgba(128, 128, 128, 0.25);
+}
+
+.dynamic-rule-categories>label {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.15em 0;
+}
+
+.dynamic-rule-preview {
+  margin: 0.8em 0 0;
+  max-height: 14em;
+  overflow-y: auto;
+}

@@ -1,0 +1,28 @@
+<div id="XtreamLiveDynamicPage" data-role="page" class="page type-interior pluginConfigurationPage withTabs"
+  data-require="emby-input,emby-button,emby-checkbox" data-controller="__plugin/XtreamLiveDynamic.js">
+  <div data-role="content">
+    <div class="content-primary">
+      <form id="XtreamLiveDynamicForm">
+        <div class="sectionTitleContainer flex align-items-center">
+          <h2 class="sectionTitle">Dynamic channels</h2>
+          <button is="emby-button" type="button" id="AddRule" class="fab emby-button" title="Add rule">
+            <span class="material-icons add" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="fieldDescription">
+          Each rule adds every Live TV channel whose name contains the keyword (case-insensitive)
+          in the selected categories. If you don't select any categories, the rule searches all of them.
+          Rules are checked again on every guide refresh. Channels that no longer match are removed
+          from Live TV, and so are channels whose rule is disabled or deleted.
+          These channels are added on top of the ones you select on the Live TV tab.
+        </div>
+        <div id="DynamicRules"></div>
+        <div>
+          <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+            <span>Save</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

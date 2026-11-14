@@ -13,7 +13,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net.Mime;
 using System.Threading;
@@ -21,6 +23,7 @@ using System.Threading.Tasks;
 using Jellyfin.Xtream.Api.Models;
 using Jellyfin.Xtream.Client;
 using Jellyfin.Xtream.Client.Models;
+using Jellyfin.Xtream.Configuration;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -186,6 +189,33 @@ public class XtreamController(IXtreamClient xtreamClient) : ControllerBase
           categoryId,
           cancellationToken).ConfigureAwait(false);
         return Ok(series.Select(CreateItemResponse));
+    }
+
+    /// <summary>
+    /// Preview the TV channels matched by a dynamic keyword rule.
+    /// </summary>
+    /// <param name="keyword">The keyword the channel name must contain.</param>
+    /// <param name="categories">Comma-separated category ids to search in; empty searches all categories.</param>
+    /// <param name="cancellationToken">The cancellation token for cancelling requests.</param>
+    /// <returns>An enumerable containing the matching streams.</returns>
+    [Authorize(Policy = "RequiresElevation")]
+    [HttpGet("LiveTv/DynamicPreview")]
+    public async Task<ActionResult<IEnumerable<ChannelResponse>>> GetDynamicPreview(
+        [FromQuery] string? keyword,
+        [FromQuery] string? categories,
+        CancellationToken cancellationToken)
+    {
+        DynamicChannelRule rule = new() { Keyword = keyword ?? string.Empty };
+        foreach (string part in (categories ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out int id))
+            {
+                rule.Categories.Add(id);
+            }
+        }
+
+        List<StreamInfo> streams = await xtreamClient.GetLiveStreamsAsync(Plugin.Instance.Creds, cancellationToken).ConfigureAwait(false);
+        return Ok(streams.Where(s => rule.Matches(s.CategoryId, s.Name)).Select(CreateChannelResponse).ToList());
     }
 
     /// <summary>

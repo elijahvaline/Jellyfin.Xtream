@@ -160,7 +160,10 @@ public partial class StreamService(IXtreamClient xtreamClient)
         PluginConfiguration config = Plugin.Instance.Configuration;
 
         IEnumerable<StreamInfo> streams = await xtreamClient.GetLiveStreamsAsync(Plugin.Instance.Creds, cancellationToken).ConfigureAwait(false);
-        return streams.Where((StreamInfo channel) => channel.CategoryId.HasValue && IsConfigured(config.LiveTv, channel.CategoryId.Value, channel.StreamId));
+        List<DynamicChannelRule> rules = config.LiveTvDynamic.Where(rule => rule.Enabled && !string.IsNullOrWhiteSpace(rule.Keyword)).ToList();
+        return streams.Where((StreamInfo channel) =>
+            (channel.CategoryId.HasValue && IsConfigured(config.LiveTv, channel.CategoryId.Value, channel.StreamId))
+            || rules.Any(rule => rule.Matches(channel.CategoryId, channel.Name)));
     }
 
     /// <summary>

@@ -14,6 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using MediaBrowser.Model.Plugins;
 
 #pragma warning disable CA2227
@@ -83,5 +84,10 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets the channel override configuration for Live TV.
     /// </summary>
     public SerializableDictionary<int, ChannelOverrides> LiveTvOverrides { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the keyword rules which dynamically add channels to Live TV.
+    /// </summary>
+    public Collection<DynamicChannelRule> LiveTvDynamic { get; set; } = [];
 }
 #pragma warning restore CA2227
