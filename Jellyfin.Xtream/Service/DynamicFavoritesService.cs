@@ -147,7 +147,8 @@ public class DynamicFavoritesService(
         if (rules.Count > 0)
         {
             List<StreamInfo> streams = await xtreamClient.GetLiveStreamsAsync(plugin.Creds, cancellationToken).ConfigureAwait(false);
-            foreach (StreamInfo stream in streams.Where(s => rules.Any(r => r.Matches(s.CategoryId, s.Name))))
+            HashSet<int> hidden = [.. plugin.Configuration.LiveTvDynamicHidden];
+            foreach (StreamInfo stream in streams.Where(s => StreamService.IsDynamicMatch(rules, hidden, s)))
             {
                 wanted.Add(StreamService.ToGuid(StreamService.LiveTvPrefix, stream.StreamId, 0, 0).ToString());
             }

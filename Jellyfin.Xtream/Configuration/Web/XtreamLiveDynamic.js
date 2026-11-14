@@ -9,106 +9,105 @@ export default function (view) {
   };
   const icon = (name) => el('span', { className: `material-icons ${name}`, ariaHidden: 'true' });
 
-  // Finds an opaque background colour so the dropdown panel matches the active theme.
-  const themeBackground = (node) => {
-    for (let n = node; n && n.nodeType === 1; n = n.parentElement) {
-      const bg = getComputedStyle(n).backgroundColor;
-      if (bg && bg !== 'transparent' && !/rgba\(.*,\s*0\)$/.test(bg)) {
-        return bg;
-      }
-    }
-    return getComputedStyle(document.body).backgroundColor || '#202020';
-  };
-
-  // A searchable multi-select dropdown. An empty selection means "all categories".
-  const createMultiSelect = (categories, initial) => {
+  // Search box with live suggestions. Picked categories become removable chips.
+  // An empty selection means "all categories".
+  const MAX_SUGGESTIONS = 8;
+  const createCategorySearch = (categories, initial) => {
     const selected = new Set(initial);
     const byId = new Map(categories.map((c) => [c.Id, c]));
+    const index = categories.map((c) => ({ category: c, name: (c.Name ?? '').toLowerCase() }));
 
-    const root = el('div', { className: 'xt-multiselect' });
-    const toggle = el('button', { type: 'button', className: 'xt-ms-toggle' });
+    const root = el('div', { className: 'xt-typeahead' });
+    const input = el('input', { type: 'search', className: 'xt-ta-input', placeholder: 'Type to search categories…', autocomplete: 'off' });
+    const results = el('ul', { className: 'xt-ta-results', hidden: true });
+    const summary = el('div', { className: 'fieldDescription' });
     const chips = el('div', { className: 'xt-ms-chips' });
-    const panel = el('div', { className: 'xt-ms-panel', hidden: true });
-    const search = el('input', { type: 'search', className: 'xt-ms-search', placeholder: 'Search categories…' });
-    const options = el('div', { className: 'xt-ms-options' });
-    const clear = el('button', { type: 'button', className: 'xt-ms-clear' }, ['Clear selection (all categories)']);
+    let suggestions = [];
+    let active = 0;
 
-    const render = () => {
-      toggle.replaceChildren(
-        el('span', {}, [selected.size === 0 ? 'All categories' : `${selected.size} selected`]),
-        icon(panel.hidden ? 'expand_more' : 'expand_less'),
-      );
+    const renderChips = () => {
+      summary.textContent = selected.size === 0
+        ? 'No categories selected: searching all categories.'
+        : `Searching ${selected.size} selected ${selected.size === 1 ? 'category' : 'categories'}.`;
       chips.replaceChildren(...[...selected].map((id) => {
         const remove = el('button', { type: 'button', title: 'Remove' }, [icon('close')]);
-        remove.onclick = () => {
-          selected.delete(id);
-          const box = options.querySelector(`input[data-id="${id}"]`);
-          if (box) box.checked = false;
-          render();
-        };
+        remove.onclick = () => { selected.delete(id); renderChips(); search(); };
         return el('span', { className: 'xt-ms-chip' }, [byId.get(id)?.Name ?? `#${id}`, remove]);
       }));
     };
 
-    for (const category of categories) {
-      const box = el('input', { type: 'checkbox', checked: selected.has(category.Id) });
-      box.dataset.id = category.Id;
-      box.onchange = () => {
-        box.checked ? selected.add(category.Id) : selected.delete(category.Id);
-        render();
-      };
-      const label = el('label', {}, [box, el('span', {}, [category.Name])]);
-      label.dataset.name = (category.Name ?? '').toLowerCase();
-      options.appendChild(label);
-    }
-
-    const noResults = el('div', { className: 'xt-ms-empty', hidden: true }, ['No categories found.']);
-    search.oninput = () => {
-      const q = search.value.trim().toLowerCase();
-      let shown = 0;
-      for (const label of options.children) {
-        const match = !q || label.dataset.name.includes(q);
-        label.hidden = !match;
-        shown += match ? 1 : 0;
-      }
-      noResults.hidden = shown > 0;
-    };
-    clear.onclick = () => {
-      selected.clear();
-      options.querySelectorAll('input').forEach((b) => b.checked = false);
-      render();
+    // Highlights the matched part of a name.
+    const highlight = (name, q) => {
+      const at = name.toLowerCase().indexOf(q);
+      if (at < 0) return [name];
+      return [name.slice(0, at), el('mark', {}, [name.slice(at, at + q.length)]), name.slice(at + q.length)];
     };
 
-    const open = (value) => {
-      panel.hidden = !value;
-      if (value) {
-        panel.style.backgroundColor = themeBackground(root);
-        search.focus();
+    const renderResults = (q) => {
+      results.replaceChildren();
+      if (!q) { results.hidden = true; return; }
+      if (suggestions.length === 0) {
+        results.appendChild(el('li', { className: 'xt-ta-empty' }, ['No categories found.']));
       }
-      render();
+      suggestions.forEach((c, n) => {
+        const li = el('li', { className: n === active ? 'active' : '' }, highlight(c.Name ?? '', q));
+        li.onmousedown = (e) => { e.preventDefault(); pick(c); };
+        results.appendChild(li);
+      });
+      results.hidden = false;
     };
-    toggle.onclick = () => open(panel.hidden);
-    root.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !panel.hidden) {
+
+    const search = () => {
+      const q = input.value.trim().toLowerCase();
+      active = 0;
+      if (!q) { suggestions = []; renderResults(q); return; }
+      const starts = [];
+      const contains = [];
+      for (const entry of index) {
+        if (selected.has(entry.category.Id)) continue;
+        const at = entry.name.indexOf(q);
+        if (at === 0) starts.push(entry.category);
+        else if (at > 0) contains.push(entry.category);
+        if (starts.length >= MAX_SUGGESTIONS) break;
+      }
+      suggestions = starts.concat(contains).slice(0, MAX_SUGGESTIONS);
+      renderResults(q);
+    };
+
+    const pick = (category) => {
+      selected.add(category.Id);
+      input.value = '';
+      renderChips();
+      search();
+      input.focus();
+    };
+
+    input.oninput = search;
+    input.onkeydown = (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (suggestions.length === 0) return;
+        e.preventDefault();
+        active = (active + (e.key === 'ArrowDown' ? 1 : suggestions.length - 1)) % suggestions.length;
+        renderResults(input.value.trim().toLowerCase());
+      } else if (e.key === 'Enter') {
+        e.preventDefault(); // never submit the page form from here
+        if (suggestions[active]) pick(suggestions[active]);
+      } else if (e.key === 'Escape' && input.value) {
         e.stopPropagation();
-        open(false);
-        toggle.focus();
+        input.value = '';
+        search();
       }
-    });
-    // Close when clicking outside of the dropdown.
-    const outside = (e) => {
-      if (!panel.hidden && !root.contains(e.target)) open(false);
     };
-    view.addEventListener('click', outside);
+    input.onblur = () => { results.hidden = true; };
+    input.onfocus = () => { if (input.value.trim()) search(); };
 
-    panel.append(search, options, noResults, clear);
-    root.append(toggle, panel, chips);
-    render();
+    root.append(input, results, summary, chips);
+    renderChips();
 
     return {
       element: root,
       getSelected: () => [...selected],
-      destroy: () => view.removeEventListener('click', outside),
+      destroy: () => {},
     };
   };
 
@@ -149,6 +148,8 @@ export default function (view) {
         Favorite: r.Favorite !== false,
         Categories: r.Categories ?? [],
       }));
+      // Channels (by stream id) that dynamic rules must never add.
+      const hidden = new Set(config.LiveTvDynamicHidden ?? []);
       let matches = []; // matches[i] = channels for rules[i], or undefined while loading
       let editing = null; // index being edited, or -1 for a new rule
       let picker = null;
@@ -175,7 +176,9 @@ export default function (view) {
           const favorite = el('input', { type: 'checkbox', checked: rule.Favorite, title: 'Favorite matched channels' });
           favorite.onchange = () => { rule.Favorite = favorite.checked; markDirty(); };
 
-          const found = matches[i];
+          const all = matches[i];
+          const found = Array.isArray(all) ? all.filter((c) => !hidden.has(c.Id)) : all;
+          const hiddenCount = Array.isArray(all) ? all.length - found.length : 0;
           const matchCell = el('td');
           const details = el('tr', { className: 'dynamic-details', hidden: true });
           if (found === undefined) {
@@ -190,6 +193,7 @@ export default function (view) {
               details.hidden = !details.hidden;
               btn.lastChild.className = `material-icons ${details.hidden ? 'expand_more' : 'expand_less'}`;
             };
+            if (hiddenCount > 0) btn.title = `${hiddenCount} hidden`;
             matchCell.appendChild(btn);
             details.appendChild(el('td', { colSpan: 6 }, [
               el('ul', {}, found.map((c) => el('li', {}, [c.Name]))),
@@ -248,11 +252,12 @@ export default function (view) {
         $('#RuleEnabled').checked = rule.Enabled;
         $('#RuleFavorite').checked = rule.Favorite;
         $('#RulePreviewList').replaceChildren();
-        picker = createMultiSelect(categories, rule.Categories);
+        picker = createCategorySearch(categories, rule.Categories);
         $('#RuleCategories').replaceChildren(picker.element);
         editor.hidden = false;
         editor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         $('#RuleKeyword').focus();
+        if (index >= 0) runPreview();
       };
 
       const draft = () => ({
@@ -276,7 +281,7 @@ export default function (view) {
         markDirty();
         refreshMatches();
       };
-      $('#RulePreview').onclick = () => {
+      const runPreview = () => {
         const list = $('#RulePreviewList');
         const rule = draft();
         list.replaceChildren();
@@ -286,19 +291,45 @@ export default function (view) {
         }
         Dashboard.showLoadingMsg();
         fetchMatches([rule]).then(([channels]) => {
-          if (channels.length === 0) list.appendChild(el('li', {}, ['No channels currently match.']));
-          channels.forEach((c) => list.appendChild(el('li', {}, [c.Name])));
+          if (channels.length === 0) {
+            list.appendChild(el('li', {}, ['No channels currently match.']));
+            return;
+          }
+          const header = el('li', { className: 'dynamic-preview-header' });
+          const updateHeader = () => {
+            const n = channels.filter((c) => hidden.has(c.Id)).length;
+            header.textContent = `${channels.length - n} of ${channels.length} channels will be added` + (n ? ` (${n} hidden)` : '') + '. Tick "Hide" to always leave a channel out.';
+          };
+          list.appendChild(header);
+          for (const c of channels) {
+            const box = el('input', { type: 'checkbox', checked: hidden.has(c.Id) });
+            const li = el('li', { className: hidden.has(c.Id) ? 'is-hidden' : '' }, [
+              el('label', { className: 'dynamic-hide' }, [box, el('span', {}, ['Hide'])]),
+              el('span', { className: 'dynamic-preview-name' }, [c.Name]),
+            ]);
+            box.onchange = () => {
+              box.checked ? hidden.add(c.Id) : hidden.delete(c.Id);
+              li.className = box.checked ? 'is-hidden' : '';
+              updateHeader();
+              markDirty();
+              renderTable();
+            };
+            list.appendChild(li);
+          }
+          updateHeader();
         }).catch((error) => {
           console.error('Failed to preview dynamic rule:', error);
           list.appendChild(el('li', {}, ['Failed to load preview.']));
         }).finally(() => Dashboard.hideLoadingMsg());
       };
+      $('#RulePreview').onclick = runPreview;
 
       $('#XtreamLiveDynamicForm').onsubmit = (e) => {
         e.preventDefault();
         Dashboard.showLoadingMsg();
         ApiClient.getPluginConfiguration(pluginId).then((latest) => {
           latest.LiveTvDynamic = rules.filter((r) => r.Keyword.trim().length > 0);
+          latest.LiveTvDynamicHidden = [...hidden];
           return ApiClient.updatePluginConfiguration(pluginId, latest);
         }).then((result) => {
           unsaved.hidden = true;

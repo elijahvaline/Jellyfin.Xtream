@@ -56,7 +56,7 @@ This is useful for event channels that come and go (e.g. "vikings" or "NFL").
 1. Open the `Dynamic channels` configuration tab.
 1. Click `+` to add a rule.
 1. Enter a keyword. Matching is case-insensitive and checks whether the channel name contains the keyword.
-1. Optionally pick one or more categories from the searchable dropdown. With no categories selected, all categories are searched.
+1. Optionally search for and pick one or more categories. With no categories selected, all categories are searched.
 1. Choose whether matched channels should be marked as favorites, and optionally click `Preview matches`.
 1. Click `Apply`, then `Save` on the bottom of the page.
 
@@ -65,6 +65,9 @@ Rules are checked again on every guide refresh.
 Channels that match are added to Live TV, and channels that no longer match are removed.
 With `Favorite` enabled, a newly matched channel is marked as a favorite for every user once.
 Users can still unfavorite it manually, and the favorite is removed when the channel stops matching.
+
+If a provider leaves a channel stuck under the same name, tick `Hide` next to it in the rule's preview.
+Hidden channels are never added by any dynamic rule (until you untick `Hide` again); channels selected on the `Live TV` tab are not affected.
 
 ### Video On-Demand
 

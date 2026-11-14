@@ -89,5 +89,10 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets the keyword rules which dynamically add channels to Live TV.
     /// </summary>
     public Collection<DynamicChannelRule> LiveTvDynamic { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the stream ids which dynamic rules must never add, even when their name matches.
+    /// </summary>
+    public Collection<int> LiveTvDynamicHidden { get; set; } = [];
 }
 #pragma warning restore CA2227

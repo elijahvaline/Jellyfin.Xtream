@@ -161,9 +161,22 @@ public partial class StreamService(IXtreamClient xtreamClient)
 
         IEnumerable<StreamInfo> streams = await xtreamClient.GetLiveStreamsAsync(Plugin.Instance.Creds, cancellationToken).ConfigureAwait(false);
         List<DynamicChannelRule> rules = config.LiveTvDynamic.Where(rule => rule.Enabled && !string.IsNullOrWhiteSpace(rule.Keyword)).ToList();
+        HashSet<int> hidden = [.. config.LiveTvDynamicHidden];
         return streams.Where((StreamInfo channel) =>
             (channel.CategoryId.HasValue && IsConfigured(config.LiveTv, channel.CategoryId.Value, channel.StreamId))
-            || rules.Any(rule => rule.Matches(channel.CategoryId, channel.Name)));
+            || IsDynamicMatch(rules, hidden, channel));
+    }
+
+    /// <summary>
+    /// Checks whether a stream is added by one of the given dynamic rules and not hidden.
+    /// </summary>
+    /// <param name="rules">The dynamic rules to check.</param>
+    /// <param name="hidden">The stream ids which must never be added dynamically.</param>
+    /// <param name="stream">The stream to check.</param>
+    /// <returns>Whether the stream is a dynamic match.</returns>
+    public static bool IsDynamicMatch(IEnumerable<DynamicChannelRule> rules, ISet<int> hidden, StreamInfo stream)
+    {
+        return !hidden.Contains(stream.StreamId) && rules.Any(rule => rule.Matches(stream.CategoryId, stream.Name));
     }
 
     /// <summary>
