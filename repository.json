@@ -8,6 +8,14 @@
     "owner": "elijahvaline",
     "versions": [
       {
+        "changelog": "Dynamic channels improvements:\n- Rules are shown in a table with categories and a live match count (click to list the channels)\n- Searchable multi-select dropdown for choosing categories\n- Matched channels can be automatically marked as favorite for all users after each guide refresh",
+        "checksum": "47484e7265c455d43f30176c2eb06c85",
+        "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.2/jellyfin-xtream_0.8.1.2.zip",
+        "targetAbi": "10.11.0.0",
+        "timestamp": "2026-11-14T19:45:45Z",
+        "version": "0.8.1.2"
+      },
+      {
         "changelog": "Adds a Dynamic channels tab: keyword rules that automatically add (and later remove) Live TV channels from selected categories on each guide refresh.",
         "checksum": "d99a83e9983e921bbec99d7462e34fd6",
         "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.1/jellyfin-xtream_0.8.1.1.zip",
