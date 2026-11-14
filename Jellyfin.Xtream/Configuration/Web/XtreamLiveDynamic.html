@@ -11,12 +11,60 @@
         </div>
         <div class="fieldDescription">
           Each rule adds every Live TV channel whose name contains the keyword (case-insensitive)
-          in the selected categories. If you don't select any categories, the rule searches all of them.
-          Rules are checked again on every guide refresh. Channels that no longer match are removed
-          from Live TV, and so are channels whose rule is disabled or deleted.
-          These channels are added on top of the ones you select on the Live TV tab.
+          in the selected categories, or in all categories if none are selected. Rules are checked again
+          on every guide refresh, and channels that no longer match are removed. When "Favorite" is on,
+          matched channels are marked as a favorite for every user once they appear. You can still remove
+          the favorite yourself after that.
         </div>
-        <div id="DynamicRules"></div>
+
+        <div id="RuleEditor" class="dynamic-editor" hidden>
+          <h3 id="RuleEditorTitle">New rule</h3>
+          <div class="inputContainer">
+            <input is="emby-input" type="text" id="RuleKeyword" label="Keyword" placeholder="e.g. vikings" />
+          </div>
+          <div class="inputContainer">
+            <label class="inputLabel">Categories</label>
+            <div id="RuleCategories"></div>
+          </div>
+          <div class="dynamic-editor-flags">
+            <label><input type="checkbox" id="RuleEnabled" /> <span>Enabled</span></label>
+            <label><input type="checkbox" id="RuleFavorite" /> <span>Favorite matched channels</span></label>
+          </div>
+          <div class="dynamic-editor-preview">
+            <button is="emby-button" type="button" id="RulePreview" class="raised emby-button">
+              <span>Preview matches</span>
+            </button>
+            <ul id="RulePreviewList"></ul>
+          </div>
+          <div class="dynamic-editor-actions">
+            <button is="emby-button" type="button" id="RuleCancel" class="raised emby-button">
+              <span>Cancel</span>
+            </button>
+            <button is="emby-button" type="button" id="RuleApply" class="raised button-submit emby-button">
+              <span>Apply</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="inputContainer">
+          <table class="dynamic-table">
+            <thead>
+              <tr>
+                <th title="Enabled">On</th>
+                <th>Keyword</th>
+                <th>Categories</th>
+                <th title="Favorite matched channels">Fav</th>
+                <th>Matches</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="DynamicRules"></tbody>
+          </table>
+        </div>
+
+        <div id="UnsavedNote" class="fieldDescription dynamic-unsaved" hidden>
+          You have unsaved changes. Click Save to apply them.
+        </div>
         <div>
           <button is="emby-button" type="submit" class="raised button-submit block emby-button">
             <span>Save</span>

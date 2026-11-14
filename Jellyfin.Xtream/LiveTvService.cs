@@ -45,8 +45,13 @@ namespace Jellyfin.Xtream;
 /// <param name="xtreamClient">Instance of the <see cref="IXtreamClient"/> interface.</param>
 public class LiveTvService(IServerApplicationHost appHost, IHttpClientFactory httpClientFactory, ILogger<LiveTvService> logger, IMemoryCache memoryCache, IXtreamClient xtreamClient) : ILiveTvService, ISupportsDirectStreamProvider
 {
+    /// <summary>
+    /// The name of this Live TV service, as stored on the channel items by Jellyfin.
+    /// </summary>
+    public const string ServiceName = "Xtream Live";
+
     /// <inheritdoc />
-    public string Name => "Xtream Live";
+    public string Name => ServiceName;
 
     /// <inheritdoc />
     public string HomePageUrl => string.Empty;

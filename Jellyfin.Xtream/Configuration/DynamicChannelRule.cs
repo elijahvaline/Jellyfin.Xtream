@@ -37,6 +37,11 @@ public class DynamicChannelRule
     public bool Enabled { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets a value indicating whether matched channels are marked as favorite for all users.
+    /// </summary>
+    public bool Favorite { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets the category ids in which to search. An empty collection searches all categories.
     /// </summary>
     public Collection<int> Categories { get; set; } = [];

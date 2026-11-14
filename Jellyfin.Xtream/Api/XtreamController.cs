@@ -15,7 +15,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Net.Mime;
 using System.Threading;
@@ -192,30 +191,33 @@ public class XtreamController(IXtreamClient xtreamClient) : ControllerBase
     }
 
     /// <summary>
-    /// Preview the TV channels matched by a dynamic keyword rule.
+    /// Get the TV channels currently matched by each of the given dynamic keyword rules.
+    /// The rules do not need to be saved, so this can be used to preview unsaved edits.
     /// </summary>
-    /// <param name="keyword">The keyword the channel name must contain.</param>
-    /// <param name="categories">Comma-separated category ids to search in; empty searches all categories.</param>
+    /// <param name="rules">The rules to evaluate.</param>
     /// <param name="cancellationToken">The cancellation token for cancelling requests.</param>
-    /// <returns>An enumerable containing the matching streams.</returns>
+    /// <returns>For every rule, in the same order, the channels it matches.</returns>
     [Authorize(Policy = "RequiresElevation")]
-    [HttpGet("LiveTv/DynamicPreview")]
-    public async Task<ActionResult<IEnumerable<ChannelResponse>>> GetDynamicPreview(
-        [FromQuery] string? keyword,
-        [FromQuery] string? categories,
+    [HttpPost("LiveTv/DynamicMatches")]
+    public async Task<ActionResult<IEnumerable<IEnumerable<ChannelResponse>>>> GetDynamicMatches(
+        [FromBody] IReadOnlyList<DynamicChannelRule> rules,
         CancellationToken cancellationToken)
     {
-        DynamicChannelRule rule = new() { Keyword = keyword ?? string.Empty };
-        foreach (string part in (categories ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        if (rules.Count == 0)
         {
-            if (int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out int id))
-            {
-                rule.Categories.Add(id);
-            }
+            return Ok(Array.Empty<ChannelResponse[]>());
+        }
+
+        foreach (DynamicChannelRule rule in rules)
+        {
+            // Preview regardless of the enabled flag.
+            rule.Enabled = true;
         }
 
         List<StreamInfo> streams = await xtreamClient.GetLiveStreamsAsync(Plugin.Instance.Creds, cancellationToken).ConfigureAwait(false);
-        return Ok(streams.Where(s => rule.Matches(s.CategoryId, s.Name)).Select(CreateChannelResponse).ToList());
+        return Ok(rules
+            .Select(rule => streams.Where(s => rule.Matches(s.CategoryId, s.Name)).Select(CreateChannelResponse).ToList())
+            .ToList());
     }
 
     /// <summary>
