@@ -8,6 +8,14 @@
     "owner": "elijahvaline",
     "versions": [
       {
+        "changelog": "- Dynamic channels: a rule can now have several keywords; a channel matches when its name contains all of them, in any order (e.g. `wisconsin hockey`). Use double quotes to keep a phrase together (e.g. `\"fox sports\" wisconsin`).",
+        "checksum": "fa738a081f6da74d9f21986c7a7fd0a2",
+        "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.6/jellyfin-xtream_0.8.1.6.zip",
+        "targetAbi": "12.4.0.0",
+        "timestamp": "2026-11-15T17:04:06Z",
+        "version": "0.8.1.6"
+      },
+      {
         "changelog": "- Dynamic channels preview now shows each channel's category; click a category to limit the rule to it\n- Fixed spacing in the rule editor (category chips, Hide checkbox), and the page styles can no longer be left stale by browser caching",
         "checksum": "a8aea16f289a2906f1a15d2220b23df1",
         "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.5/jellyfin-xtream_0.8.1.5.zip",
