@@ -62,8 +62,8 @@
           </button>
         </div>
         <div class="fieldDescription">
-          Each rule adds every Live TV channel whose name contains the keyword (case-insensitive)
-          in the selected categories, or in all categories if none are selected. Rules are checked again
+          Each rule adds every Live TV channel whose name contains all of its keywords, in any order
+          (case-insensitive), in the selected categories, or in all categories if none are selected. Rules are checked again
           on every guide refresh, and channels that no longer match are removed. When "Favorite" is on,
           matched channels are marked as a favorite for every user once they appear. You can still remove
           the favorite yourself after that. Use "Hide" in a rule's preview to always leave out a specific
@@ -73,7 +73,10 @@
         <div id="RuleEditor" class="dynamic-editor" hidden>
           <h3 id="RuleEditorTitle">New rule</h3>
           <div class="inputContainer">
-            <input is="emby-input" type="text" id="RuleKeyword" label="Keyword" placeholder="e.g. vikings" />
+            <input is="emby-input" type="text" id="RuleKeyword" label="Keywords" placeholder="e.g. wisconsin hockey" />
+            <div class="fieldDescription">
+              Channels must contain every word, in any order. Use quotes to keep a phrase together, e.g. "fox sports" wisconsin.
+            </div>
           </div>
           <div class="inputContainer">
             <label class="inputLabel">Categories</label>
@@ -104,7 +107,7 @@
             <thead>
               <tr>
                 <th title="Enabled">On</th>
-                <th>Keyword</th>
+                <th>Keywords</th>
                 <th>Categories</th>
                 <th title="Favorite matched channels">Fav</th>
                 <th>Matches</th>

@@ -274,7 +274,7 @@ export default function (view) {
       $('#RuleApply').onclick = () => {
         const rule = draft();
         if (!rule.Keyword) {
-          Dashboard.alert('Enter a keyword.');
+          Dashboard.alert('Enter at least one keyword.');
           return;
         }
         if (editing >= 0) rules[editing] = rule;

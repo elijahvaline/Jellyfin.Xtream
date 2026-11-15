@@ -14,20 +14,26 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
+using System.Text.RegularExpressions;
 
 #pragma warning disable CA2227
 namespace Jellyfin.Xtream.Configuration;
 
 /// <summary>
-/// A rule which dynamically includes Live TV channels whose name contains a keyword.
+/// A rule which dynamically includes Live TV channels whose name contains all of its keywords.
 /// Rules are evaluated on every guide refresh, so channels are added when they
 /// start matching and removed again once they no longer match.
 /// </summary>
-public class DynamicChannelRule
+public partial class DynamicChannelRule
 {
+    private ParsedKeyword _parsed = new(string.Empty, []);
+
     /// <summary>
-    /// Gets or sets the keyword which must be contained in the channel name (case-insensitive).
+    /// Gets or sets the keywords which must all be contained in the channel name (case-insensitive, any order).
+    /// Words are separated by spaces; use double quotes to keep a phrase together, e.g. <c>"fox sports" wisconsin</c>.
     /// </summary>
     public string Keyword { get; set; } = string.Empty;
 
@@ -47,6 +53,31 @@ public class DynamicChannelRule
     public Collection<int> Categories { get; set; } = [];
 
     /// <summary>
+    /// Splits a keyword string into its search terms: double-quoted phrases and single words.
+    /// </summary>
+    /// <param name="keyword">The keyword string.</param>
+    /// <returns>The non-empty search terms.</returns>
+    public static string[] ParseTerms(string? keyword)
+    {
+        if (string.IsNullOrWhiteSpace(keyword))
+        {
+            return [];
+        }
+
+        List<string> terms = [];
+        foreach (Match match in TermRegex().Matches(keyword))
+        {
+            string term = (match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value).Trim();
+            if (term.Length > 0)
+            {
+                terms.Add(term);
+            }
+        }
+
+        return [.. terms];
+    }
+
+    /// <summary>
     /// Checks whether the given channel matches this rule.
     /// </summary>
     /// <param name="categoryId">The category of the channel.</param>
@@ -54,8 +85,8 @@ public class DynamicChannelRule
     /// <returns>Whether the channel matches.</returns>
     public bool Matches(int? categoryId, string? name)
     {
-        string keyword = Keyword.Trim();
-        if (!Enabled || keyword.Length == 0 || string.IsNullOrEmpty(name))
+        string[] terms = GetTerms();
+        if (!Enabled || terms.Length == 0 || string.IsNullOrEmpty(name))
         {
             return false;
         }
@@ -65,7 +96,25 @@ public class DynamicChannelRule
             return false;
         }
 
-        return name.Contains(keyword, StringComparison.OrdinalIgnoreCase);
+        return terms.All(term => name.Contains(term, StringComparison.OrdinalIgnoreCase));
     }
+
+    [GeneratedRegex("\"([^\"]*)\"?|([^\\s\"]+)")]
+    private static partial Regex TermRegex();
+
+    private string[] GetTerms()
+    {
+        // Rules are matched against every stream, so parse the keyword only when it changes.
+        ParsedKeyword parsed = _parsed;
+        if (!string.Equals(parsed.Source, Keyword, StringComparison.Ordinal))
+        {
+            parsed = new(Keyword, ParseTerms(Keyword));
+            _parsed = parsed;
+        }
+
+        return parsed.Terms;
+    }
+
+    private sealed record ParsedKeyword(string Source, string[] Terms);
 }
 #pragma warning restore CA2227

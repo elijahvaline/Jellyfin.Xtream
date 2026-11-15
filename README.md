@@ -50,14 +50,17 @@ The following credentials should be set correctly in the `Credentials` plugin co
 
 ### Dynamic channels
 
-Dynamic channels add Live TV channels based on a keyword instead of a fixed selection.
+Dynamic channels add Live TV channels based on keywords instead of a fixed selection.
 This is useful for event channels that come and go (e.g. "vikings" or "NFL").
 
 1. Open the `Dynamic channels` configuration tab.
 1. Click `+` to add a rule.
-1. Enter a keyword. Matching is case-insensitive and checks whether the channel name contains the keyword.
+1. Enter one or more keywords. A channel matches when its name contains every keyword, in any order (case-insensitive).
+   For example, `wisconsin hockey` matches "Ice Hockey (W): St. Thomas at Wisconsin".
+   Put a phrase in double quotes to keep its words together, e.g. `"fox sports" wisconsin`.
+1. Click `Preview matches` with no categories selected to see which categories the matches come from; click a category in the preview to limit the rule to it.
 1. Optionally search for and pick one or more categories. With no categories selected, all categories are searched.
-1. Choose whether matched channels should be marked as favorites, and optionally click `Preview matches`.
+1. Choose whether matched channels should be marked as favorites.
 1. Click `Apply`, then `Save` on the bottom of the page.
 
 Existing rules are listed in a table showing their categories and the number of channels they currently match (click the number to see the channels).
