@@ -69,6 +69,7 @@ public class XtreamController(IXtreamClient xtreamClient) : ControllerBase
             LogoUrl = stream.StreamIcon,
             Name = stream.Name,
             Number = stream.Num,
+            CategoryId = stream.CategoryId,
         };
 
     /// <summary>

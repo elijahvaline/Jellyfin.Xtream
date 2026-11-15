@@ -1,5 +1,57 @@
 <div id="XtreamLiveDynamicPage" data-role="page" class="page type-interior pluginConfigurationPage withTabs"
   data-require="emby-input,emby-button,emby-checkbox" data-controller="__plugin/XtreamLiveDynamic.js">
+  <style>
+    /* Inline so these styles ship with the page and are never shadowed by a cached stylesheet. */
+    #XtreamLiveDynamicPage .dynamic-table { width: 100%; border-collapse: collapse; }
+    #XtreamLiveDynamicPage .dynamic-table th { text-align: left; padding: 0.4em 0.5em; border-bottom: 1px solid rgba(128, 128, 128, 0.4); white-space: nowrap; }
+    #XtreamLiveDynamicPage .dynamic-table td { padding: 0.3em 0.5em; vertical-align: middle; border-bottom: 1px solid rgba(128, 128, 128, 0.15); }
+    #XtreamLiveDynamicPage .dynamic-table .dynamic-keyword { font-weight: 600; word-break: break-word; }
+    #XtreamLiveDynamicPage .dynamic-table .dynamic-categories { width: 100%; opacity: 0.85; }
+    #XtreamLiveDynamicPage .dynamic-table .dynamic-actions { white-space: nowrap; text-align: right; }
+    #XtreamLiveDynamicPage .dynamic-table tr.dynamic-disabled > td:not(:first-child) { opacity: 0.45; }
+    #XtreamLiveDynamicPage .dynamic-table .dynamic-empty { padding: 1.2em 0.5em; opacity: 0.7; }
+    #XtreamLiveDynamicPage .dynamic-count { display: inline-flex; align-items: center; gap: 0.1em; background: none; border: none; color: inherit; font: inherit; cursor: pointer; padding: 0.2em; }
+    #XtreamLiveDynamicPage .dynamic-count:disabled { cursor: default; opacity: 0.6; }
+    #XtreamLiveDynamicPage .dynamic-count:disabled .material-icons { display: none; }
+    #XtreamLiveDynamicPage .dynamic-details ul { margin: 0.2em 0 0.6em; max-height: 14em; overflow-y: auto; }
+
+    #XtreamLiveDynamicPage .dynamic-editor { border: 1px solid rgba(128, 128, 128, 0.4); border-radius: 0.3em; padding: 0 1em 1em; margin-bottom: 1.5em; }
+    #XtreamLiveDynamicPage .dynamic-editor-flags { display: flex; flex-wrap: wrap; gap: 0.6em 1.5em; margin: 1em 0; }
+    #XtreamLiveDynamicPage .dynamic-editor-flags > label { display: inline-flex; align-items: center; gap: 0.5em; cursor: pointer; }
+    #XtreamLiveDynamicPage .dynamic-editor-actions { display: flex; justify-content: flex-end; gap: 0.5em; margin-top: 1em; }
+    #XtreamLiveDynamicPage .dynamic-unsaved { color: #f0ad4e; }
+
+    /* Category search */
+    #XtreamLiveDynamicPage .xt-typeahead { position: relative; }
+    #XtreamLiveDynamicPage .xt-ta-input { box-sizing: border-box; width: 100%; padding: 0.55em 0.7em; background: rgba(128, 128, 128, 0.15); border: 1px solid rgba(128, 128, 128, 0.4); border-radius: 0.2em; color: inherit; font: inherit; }
+    #XtreamLiveDynamicPage .xt-ta-results { list-style: none; margin: 0.2em 0 0; padding: 0.2em 0; border: 1px solid rgba(128, 128, 128, 0.4); border-radius: 0.2em; }
+    #XtreamLiveDynamicPage .xt-ta-results > li { padding: 0.35em 0.7em; cursor: pointer; }
+    #XtreamLiveDynamicPage .xt-ta-results > li.active,
+    #XtreamLiveDynamicPage .xt-ta-results > li:hover { background: rgba(128, 128, 128, 0.25); }
+    #XtreamLiveDynamicPage .xt-ta-results > li.xt-ta-empty { cursor: default; opacity: 0.7; background: none; }
+    #XtreamLiveDynamicPage .xt-ta-results mark { background: none; color: inherit; font-weight: 700; text-decoration: underline; }
+    #XtreamLiveDynamicPage .xt-ta-summary { margin: 0.5em 0 0; padding: 0; }
+    #XtreamLiveDynamicPage .xt-ms-chips { display: flex; flex-wrap: wrap; gap: 0.4em; margin-top: 0.5em; }
+    #XtreamLiveDynamicPage .xt-ms-chips:empty { display: none; }
+    #XtreamLiveDynamicPage .xt-ms-chip { display: inline-flex; align-items: center; gap: 0.3em; padding: 0.25em 0.3em 0.25em 0.8em; border-radius: 1em; background: rgba(128, 128, 128, 0.25); font-size: 0.9em; line-height: 1.3; }
+    #XtreamLiveDynamicPage .xt-ms-chip > button { all: unset; display: inline-flex; align-items: center; justify-content: center; width: 1.4em; height: 1.4em; border-radius: 50%; cursor: pointer; }
+    #XtreamLiveDynamicPage .xt-ms-chip > button:hover,
+    #XtreamLiveDynamicPage .xt-ms-chip > button:focus-visible { background: rgba(128, 128, 128, 0.4); }
+    #XtreamLiveDynamicPage .xt-ms-chip .material-icons { font-size: 1.05em; }
+
+    /* Preview */
+    #XtreamLiveDynamicPage .dynamic-editor-preview > ul { list-style: none; margin: 0.8em 0 0; padding: 0; max-height: 22em; overflow-y: auto; }
+    #XtreamLiveDynamicPage .dynamic-editor-preview > ul > li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3em 1em; padding: 0.35em 0.2em; border-bottom: 1px solid rgba(128, 128, 128, 0.15); }
+    #XtreamLiveDynamicPage .dynamic-editor-preview > ul > li.dynamic-preview-header { display: block; opacity: 0.8; padding-bottom: 0.6em; }
+    #XtreamLiveDynamicPage .dynamic-hide { display: inline-flex; align-items: center; gap: 0.4em; flex: none; font-size: 0.85em; opacity: 0.8; white-space: nowrap; cursor: pointer; }
+    #XtreamLiveDynamicPage .dynamic-hide > input { margin: 0; }
+    #XtreamLiveDynamicPage .dynamic-preview-name { flex: 1 1 18em; min-width: 0; word-break: break-word; }
+    #XtreamLiveDynamicPage .dynamic-preview-category { all: unset; flex: none; padding: 0.15em 0.7em; border-radius: 1em; background: rgba(128, 128, 128, 0.2); font-size: 0.8em; white-space: nowrap; }
+    #XtreamLiveDynamicPage button.dynamic-preview-category { cursor: pointer; }
+    #XtreamLiveDynamicPage button.dynamic-preview-category:hover,
+    #XtreamLiveDynamicPage button.dynamic-preview-category:focus-visible { background: rgba(128, 128, 128, 0.4); }
+    #XtreamLiveDynamicPage li.is-hidden .dynamic-preview-name { text-decoration: line-through; opacity: 0.5; }
+  </style>
   <div data-role="content">
     <div class="content-primary">
       <form id="XtreamLiveDynamicForm">

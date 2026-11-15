@@ -20,7 +20,7 @@ export default function (view) {
     const root = el('div', { className: 'xt-typeahead' });
     const input = el('input', { type: 'search', className: 'xt-ta-input', placeholder: 'Type to search categories…', autocomplete: 'off' });
     const results = el('ul', { className: 'xt-ta-results', hidden: true });
-    const summary = el('div', { className: 'fieldDescription' });
+    const summary = el('div', { className: 'fieldDescription xt-ta-summary' });
     const chips = el('div', { className: 'xt-ms-chips' });
     let suggestions = [];
     let active = 0;
@@ -107,6 +107,8 @@ export default function (view) {
     return {
       element: root,
       getSelected: () => [...selected],
+      has: (id) => selected.has(id),
+      add: (id) => { if (byId.has(id)) { selected.add(id); renderChips(); } },
       destroy: () => {},
     };
   };
@@ -296,9 +298,11 @@ export default function (view) {
             return;
           }
           const header = el('li', { className: 'dynamic-preview-header' });
+          const filtered = rule.Categories.length > 0;
           const updateHeader = () => {
             const n = channels.filter((c) => hidden.has(c.Id)).length;
-            header.textContent = `${channels.length - n} of ${channels.length} channels will be added` + (n ? ` (${n} hidden)` : '') + '. Tick "Hide" to always leave a channel out.';
+            header.textContent = `${channels.length - n} of ${channels.length} channels will be added` + (n ? ` (${n} hidden)` : '') + '. Tick "Hide" to always leave a channel out.'
+              + (filtered ? '' : ' Click a category to limit the rule to it.');
           };
           list.appendChild(header);
           for (const c of channels) {
@@ -307,6 +311,16 @@ export default function (view) {
               el('label', { className: 'dynamic-hide' }, [box, el('span', {}, ['Hide'])]),
               el('span', { className: 'dynamic-preview-name' }, [c.Name]),
             ]);
+            if (c.CategoryId != null) {
+              const name = categoryNames.get(c.CategoryId) ?? `#${c.CategoryId}`;
+              if (picker.has(c.CategoryId)) {
+                li.appendChild(el('span', { className: 'dynamic-preview-category', title: 'Category' }, [name]));
+              } else {
+                const tag = el('button', { type: 'button', className: 'dynamic-preview-category', title: 'Limit this rule to this category' }, [name]);
+                tag.onclick = () => { picker.add(c.CategoryId); runPreview(); };
+                li.appendChild(tag);
+              }
+            }
             box.onchange = () => {
               box.checked ? hidden.add(c.Id) : hidden.delete(c.Id);
               li.className = box.checked ? 'is-hidden' : '';

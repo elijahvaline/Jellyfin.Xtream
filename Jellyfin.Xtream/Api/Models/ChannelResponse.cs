@@ -39,4 +39,9 @@ public class ChannelResponse
     /// Gets or sets the url of the channel logo.
     /// </summary>
     public string LogoUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the id of the category the TV channel belongs to.
+    /// </summary>
+    public int? CategoryId { get; set; }
 }

@@ -7,7 +7,8 @@ const tab = (name) => '/configurationpage?name=' + name + '.html';
 $(document).ready(() => {
   const style = document.createElement('link');
   style.rel = 'stylesheet';
-  style.href = url('Xtream.css')
+  // Cache-bust so an upgraded plugin's styles are not shadowed by a stale copy.
+  style.href = url('Xtream.css') + '&v=' + Date.now();
   document.head.appendChild(style);
 });
 
