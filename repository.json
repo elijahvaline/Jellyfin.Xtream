@@ -8,6 +8,14 @@
     "owner": "elijahvaline",
     "versions": [
       {
+        "changelog": "- Dynamic channels preview now shows each channel's category; click a category to limit the rule to it\n- Fixed spacing in the rule editor (category chips, Hide checkbox), and the page styles can no longer be left stale by browser caching",
+        "checksum": "a8aea16f289a2906f1a15d2220b23df1",
+        "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.5/jellyfin-xtream_0.8.1.5.zip",
+        "targetAbi": "12.4.0.0",
+        "timestamp": "2026-11-15T16:44:20Z",
+        "version": "0.8.1.5"
+      },
+      {
         "changelog": "Dynamic channels:\n- Category selection is now a search box with live suggestions instead of a dropdown\n- Hide checkbox in a rule's preview to always leave out a specific (e.g. stuck) channel\n- Preview loads automatically when editing an existing rule",
         "checksum": "988dac014a365fed2127fc7fe051eb6f",
         "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.4/jellyfin-xtream_0.8.1.4.zip",
