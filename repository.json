@@ -8,6 +8,14 @@
     "owner": "elijahvaline",
     "versions": [
       {
+        "changelog": "- Team libraries: each rule with \"Show as team library\" gets its own library on the home screen with the team logo, shown only on game days (replaces the Xtream Teams channel)\n- Rule preview: click several categories without the preview refreshing",
+        "checksum": "ddf251fe6e64c7236ba6c1323c4c7805",
+        "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.8/jellyfin-xtream_0.8.1.8.zip",
+        "targetAbi": "12.4.0.0",
+        "timestamp": "2026-11-22T16:19:04Z",
+        "version": "0.8.1.8"
+      },
+      {
         "changelog": "- Fix: favorites added by dynamic rules were sometimes removed after playing the channel\n- New: \"Show as folder\" on dynamic rules creates team folders in the Xtream Teams channel\n- New: link a rule to a team (ESPN) for real game start times in the guide; team folders list game streams on game day\n- New: time zone setting for game days and times",
         "checksum": "2c3bb23e5d99451da33a6fe33ac4dc17",
         "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.7/jellyfin-xtream_0.8.1.7.zip",
