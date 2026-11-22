@@ -53,6 +53,7 @@ public partial class SportsService(
     private readonly object _snapshotLock = new();
     private Snapshot? _snapshot;
     private int _refreshing;
+    private int _generation;
 
     /// <summary>
     /// Gets the supported leagues.
@@ -245,7 +246,7 @@ public partial class SportsService(
     {
         Plugin plugin = Plugin.Instance;
         PluginConfiguration config = plugin.Configuration;
-        string key = $"xtream-sports-rules-{plugin.DataVersion}";
+        string key = $"xtream-sports-rules-{plugin.DataVersion}-{Volatile.Read(ref _generation)}";
         if (memoryCache.TryGetValue(key, out IReadOnlyList<RuleMatches>? cached) && cached is not null)
         {
             return cached;
@@ -280,6 +281,18 @@ public partial class SportsService(
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Forgets the cached rule matches, so the next lookup fetches the current streams from the provider.
+    /// </summary>
+    public void InvalidateMatches()
+    {
+        Interlocked.Increment(ref _generation);
+        lock (_snapshotLock)
+        {
+            _snapshot = null;
+        }
     }
 
     /// <summary>

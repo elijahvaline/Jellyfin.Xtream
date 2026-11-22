@@ -35,10 +35,11 @@ namespace Jellyfin.Xtream.Api;
 /// </summary>
 /// <param name="xtreamClient">Instance of the <see cref="IXtreamClient"/> interface.</param>
 /// <param name="sportsService">Instance of the <see cref="SportsService"/> class.</param>
+/// <param name="smartRefreshService">Instance of the <see cref="SmartRefreshService"/> class.</param>
 [ApiController]
 [Route("[controller]")]
 [Produces(MediaTypeNames.Application.Json)]
-public class XtreamController(IXtreamClient xtreamClient, SportsService sportsService) : ControllerBase
+public class XtreamController(IXtreamClient xtreamClient, SportsService sportsService, SmartRefreshService smartRefreshService) : ControllerBase
 {
     private static CategoryResponse CreateCategoryResponse(Category category) =>
         new()
@@ -243,6 +244,17 @@ public class XtreamController(IXtreamClient xtreamClient, SportsService sportsSe
         }
 
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Get the next planned smart refresh of the TV guide.
+    /// </summary>
+    /// <returns>The next planned run, or no content when none is planned.</returns>
+    [Authorize(Policy = "RequiresElevation")]
+    [HttpGet("Sports/SmartRefresh")]
+    public ActionResult<PlannedRun> GetSmartRefresh()
+    {
+        return smartRefreshService.NextRun is PlannedRun next ? Ok(next) : NoContent();
     }
 
     /// <summary>

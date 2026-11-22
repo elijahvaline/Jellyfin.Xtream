@@ -173,6 +173,27 @@ export default function (view) {
         setTimeout(() => markDirty(), 0);
       }
 
+      // Smart guide refresh.
+      const smartEnabled = $('#SmartRefreshEnabled');
+      const smartBefore = $('#SmartRefreshBefore');
+      const smartAfter = $('#SmartRefreshAfter');
+      smartEnabled.checked = config.SmartRefreshEnabled !== false;
+      smartBefore.value = config.SmartRefreshBeforeMinutes ?? 60;
+      smartAfter.value = config.SmartRefreshAfterMinutes ?? 240;
+      const updateSmart = () => { $('#SmartRefreshOffsets').hidden = !smartEnabled.checked; };
+      smartEnabled.onchange = () => { updateSmart(); markDirty(); };
+      smartBefore.oninput = smartAfter.oninput = () => markDirty();
+      updateSmart();
+      const showNextRun = () => ApiClient.fetch({ type: 'GET', url: ApiClient.getUrl('Xtream/Sports/SmartRefresh') })
+        .then((response) => (response.status === 204 ? null : response.json()))
+        .then((next) => {
+          $('#SmartRefreshNext').textContent = next
+            ? `Next smart refresh: ${new Date(next.TimeUtc.endsWith('Z') ? next.TimeUtc : `${next.TimeUtc}Z`).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} (${next.Reason}).`
+            : (smartEnabled.checked ? 'No smart refresh planned: link a rule to a team with upcoming games.' : '');
+        })
+        .catch(() => { $('#SmartRefreshNext').textContent = ''; });
+      showNextRun();
+
       const loadTeams = (league) => {
         if (!teamCache.has(league)) {
           const promise = Xtream.fetchJson(`Xtream/Sports/Teams?league=${encodeURIComponent(league)}`);
@@ -447,10 +468,15 @@ export default function (view) {
           latest.LiveTvDynamic = rules.filter((r) => r.Keyword.trim().length > 0);
           latest.LiveTvDynamicHidden = [...hidden];
           latest.SportsTimeZone = zoneSelect.value;
+          latest.SmartRefreshEnabled = smartEnabled.checked;
+          latest.SmartRefreshBeforeMinutes = Math.max(0, parseInt(smartBefore.value, 10) || 0);
+          latest.SmartRefreshAfterMinutes = Math.max(0, parseInt(smartAfter.value, 10) || 0);
           return ApiClient.updatePluginConfiguration(pluginId, latest);
         }).then((result) => {
           unsaved.hidden = true;
           Dashboard.processPluginConfigurationUpdateResult(result);
+          // Saving refreshes the guide, after which the next smart refresh is planned again.
+          setTimeout(showNextRun, 60000);
         });
         return false;
       };

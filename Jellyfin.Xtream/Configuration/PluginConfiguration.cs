@@ -100,5 +100,21 @@ public class PluginConfiguration : BasePluginConfiguration
     /// and to display game times. When empty, the server's time zone is used.
     /// </summary>
     public string SportsTimeZone { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the TV guide is refreshed around the games of linked teams,
+    /// in addition to its regular schedule.
+    /// </summary>
+    public bool SmartRefreshEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets how many minutes before a game starts the smart refresh runs.
+    /// </summary>
+    public int SmartRefreshBeforeMinutes { get; set; } = 60;
+
+    /// <summary>
+    /// Gets or sets how many minutes after a game starts the smart refresh runs again, to clean up.
+    /// </summary>
+    public int SmartRefreshAfterMinutes { get; set; } = 240;
 }
 #pragma warning restore CA2227
