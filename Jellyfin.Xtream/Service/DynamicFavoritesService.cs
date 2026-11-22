@@ -194,6 +194,13 @@ public class DynamicFavoritesService(
 
     private void SetFavorite(List<User> users, BaseItem item, bool favorite, CancellationToken cancellationToken)
     {
+        // Jellyfin reads user data from the BaseItem instance (item.UserData) and SaveUserData only
+        // rehydrates the instance it is given. GetItemList returns fresh instances, so saving through
+        // them leaves the library-cached channel (used by playback) with stale user data; the next
+        // playback report then writes that stale row back and silently drops the favorite.
+        // Always save through the cached instance so playback sees the updated favorite.
+        item = libraryManager.GetItemById(item.Id) ?? item;
+
         foreach (User user in users)
         {
             UserItemData? data = userDataManager.GetUserData(user, item);
