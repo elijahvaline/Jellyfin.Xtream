@@ -37,7 +37,12 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IChannel, CatchupChannel>();
         serviceCollection.AddSingleton<IChannel, SeriesChannel>();
         serviceCollection.AddSingleton<IChannel, VodChannel>();
-        serviceCollection.AddSingleton<IChannel, TeamsChannel>();
+        for (int slot = 0; slot < TeamSlotChannel.SlotCount; slot++)
+        {
+            int index = slot;
+            serviceCollection.AddSingleton<IChannel>(sp => ActivatorUtilities.CreateInstance<TeamSlotChannel>(sp, index));
+        }
+
         serviceCollection.AddSingleton<IPreRefreshProvider, XtreamVodProvider>();
         serviceCollection.AddHostedService<DynamicFavoritesService>();
     }

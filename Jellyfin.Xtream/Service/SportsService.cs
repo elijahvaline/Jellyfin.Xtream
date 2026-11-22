@@ -48,6 +48,12 @@ public partial class SportsService(
 {
     private const string BaseUrl = "https://site.api.espn.com/apis/site/v2/sports/";
 
+    private static readonly TimeSpan _matchesLifetime = TimeSpan.FromMinutes(5);
+
+    private readonly object _snapshotLock = new();
+    private Snapshot? _snapshot;
+    private int _refreshing;
+
     /// <summary>
     /// Gets the supported leagues.
     /// </summary>
@@ -267,8 +273,62 @@ public partial class SportsService(
             }
         }
 
-        memoryCache.Set(key, (IReadOnlyList<RuleMatches>)result, DateTimeOffset.Now.AddMinutes(5));
+        memoryCache.Set(key, (IReadOnlyList<RuleMatches>)result, DateTimeOffset.Now.Add(_matchesLifetime));
+        lock (_snapshotLock)
+        {
+            _snapshot = new Snapshot(plugin.DataVersion, DateTime.UtcNow, result);
+        }
+
         return result;
+    }
+
+    /// <summary>
+    /// Gets the most recent rule matches without waiting, for callers that must answer synchronously
+    /// (e.g. deciding which libraries a user sees). A stale snapshot is refreshed in the background;
+    /// only the very first call, or the first call after a configuration change, waits for the result.
+    /// </summary>
+    /// <returns>The matches per rule.</returns>
+    public IReadOnlyList<RuleMatches> GetRuleMatchesSnapshot()
+    {
+        Snapshot? snapshot;
+        lock (_snapshotLock)
+        {
+            snapshot = _snapshot;
+        }
+
+        if (snapshot is null || snapshot.Version != Plugin.Instance.DataVersion)
+        {
+            try
+            {
+                return GetRuleMatchesAsync(CancellationToken.None).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to match streams of team rules");
+                return snapshot?.Matches ?? [];
+            }
+        }
+
+        if (DateTime.UtcNow - snapshot.CreatedUtc > _matchesLifetime && Interlocked.Exchange(ref _refreshing, 1) == 0)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await GetRuleMatchesAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to refresh the matched streams of team rules");
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _refreshing, 0);
+                }
+            });
+        }
+
+        return snapshot.Matches;
     }
 
     private static TimeSpan GameDuration(string league) => league.Split('/')[0] switch
@@ -403,4 +463,6 @@ public partial class SportsService(
 
     [GeneratedRegex("^[A-Za-z0-9-]{1,20}$")]
     private static partial Regex TeamIdRegex();
+
+    private sealed record Snapshot(string Version, DateTime CreatedUtc, IReadOnlyList<RuleMatches> Matches);
 }

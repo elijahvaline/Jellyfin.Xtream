@@ -25,38 +25,75 @@ using MediaBrowser.Controller.Channels;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Channels;
 using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.MediaInfo;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Xtream;
 
 /// <summary>
-/// A channel with a folder per dynamic rule that has "Show as folder" enabled, listing every stream the rule matches.
-/// Streams of a linked team's games are only listed on the day of the game.
+/// One team library. Jellyfin only learns about channels at startup, so a fixed number of slots is registered:
+/// slot N shows the N-th enabled dynamic rule with "Show as team library" turned on, named after the team.
+/// A slot is only visible when its rule is in use and, for rules linked to a team, on the team's game days.
 /// </summary>
+/// <param name="slot">The zero-based slot index.</param>
 /// <param name="logger">Instance of the <see cref="ILogger"/> interface.</param>
 /// <param name="sportsService">Instance of the <see cref="SportsService"/> class.</param>
-public class TeamsChannel(ILogger<TeamsChannel> logger, SportsService sportsService) : IChannel, IDisableMediaSourceDisplay
+public class TeamSlotChannel(int slot, ILogger<TeamSlotChannel> logger, SportsService sportsService) : IChannel, IDisableMediaSourceDisplay
 {
     /// <summary>
-    /// How often the folder contents are refreshed, so game-day streams appear and disappear on time.
+    /// The number of team slots, i.e. the maximum number of team libraries.
+    /// </summary>
+    public const int SlotCount = 20;
+
+    /// <summary>
+    /// How often the stream list is refreshed, so game-day streams appear and disappear on time.
     /// </summary>
     private static readonly TimeSpan _refreshInterval = TimeSpan.FromMinutes(15);
 
     /// <inheritdoc />
-    public string? Name => "Xtream Teams";
+    /// <remarks>
+    /// Jellyfin derives the channel's id from its name, so each team keeps its own library (and image)
+    /// even when rules are reordered. Unused slots get a fixed name and stay hidden.
+    /// </remarks>
+    public string? Name => GetSlotRule(out string name) is null ? $"Xtream Team Slot {slot + 1}" : name;
 
     /// <inheritdoc />
-    public string? Description => "Every stream for your teams, grouped per team.";
+    public string? Description => "Every stream for this team, listed on game days.";
 
     /// <inheritdoc />
     public string DataVersion =>
-        Plugin.Instance.DataVersion + (DateTime.UtcNow.Ticks / _refreshInterval.Ticks).ToString(CultureInfo.InvariantCulture);
+        Plugin.Instance.DataVersion + Name + (DateTime.UtcNow.Ticks / _refreshInterval.Ticks).ToString(CultureInfo.InvariantCulture);
 
     /// <inheritdoc />
     public string HomePageUrl => string.Empty;
 
     /// <inheritdoc />
     public ChannelParentalRating ParentalRating => ChannelParentalRating.GeneralAudience;
+
+    /// <summary>
+    /// Gets the rules shown as team libraries, in slot order, with unique library names.
+    /// </summary>
+    /// <returns>The rules and their library names.</returns>
+    public static IReadOnlyList<(DynamicChannelRule Rule, string Name)> GetTeamRules()
+    {
+        List<(DynamicChannelRule Rule, string Name)> result = [];
+        HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
+        foreach (DynamicChannelRule rule in Plugin.Instance.Configuration.LiveTvDynamic
+            .Where(r => r.Enabled && r.ShowAsFolder && !string.IsNullOrWhiteSpace(r.Keyword))
+            .DistinctBy(r => r.FolderKey)
+            .Take(SlotCount))
+        {
+            string name = rule.DisplayFolderName;
+            for (int n = 2; !names.Add(name); n++)
+            {
+                name = $"{rule.DisplayFolderName} ({n})";
+            }
+
+            result.Add((rule, name));
+        }
+
+        return result;
+    }
 
     /// <inheritdoc />
     public InternalChannelFeatures GetChannelFeatures()
@@ -75,16 +112,45 @@ public class TeamsChannel(ILogger<TeamsChannel> logger, SportsService sportsServ
     /// <inheritdoc />
     public Task<DynamicImageResponse> GetChannelImage(ImageType type, CancellationToken cancellationToken)
     {
-        throw new ArgumentException("Unsupported image type: " + type);
+        string? logo = type == ImageType.Primary ? GetMatches()?.Schedule?.Team.LogoUrl : null;
+        return Task.FromResult(string.IsNullOrEmpty(logo)
+            ? new DynamicImageResponse { HasImage = false }
+            : new DynamicImageResponse { HasImage = true, Path = logo, Protocol = MediaProtocol.Http });
     }
 
     /// <inheritdoc />
-    public IEnumerable<ImageType> GetSupportedChannelImages() => [];
+    public IEnumerable<ImageType> GetSupportedChannelImages() => [ImageType.Primary];
 
     /// <inheritdoc />
     public bool IsEnabledFor(string userId)
     {
-        return Plugin.Instance.Configuration.LiveTvDynamic.Any(r => r.Enabled && r.ShowAsFolder);
+        try
+        {
+            if (GetSlotRule(out _) is not DynamicChannelRule rule)
+            {
+                return false;
+            }
+
+            if (!rule.HasTeam)
+            {
+                return true;
+            }
+
+            RuleMatches? matches = GetMatches();
+            if (matches?.Schedule is null)
+            {
+                // Without a schedule (e.g. ESPN unreachable) there is no way to tell game days: show the library.
+                return true;
+            }
+
+            DateTime now = DateTime.UtcNow;
+            return matches.Streams.Any(s => s.Game is not null && SportsService.IsGameDay(s.Game, now));
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to check whether team slot {Slot} is visible", slot + 1);
+            return false;
+        }
     }
 
     /// <inheritdoc />
@@ -92,23 +158,18 @@ public class TeamsChannel(ILogger<TeamsChannel> logger, SportsService sportsServ
     {
         try
         {
-            IReadOnlyList<RuleMatches> matches = await sportsService.GetRuleMatchesAsync(cancellationToken).ConfigureAwait(false);
-            List<RuleMatches> folders = matches.Where(m => m.Rule.ShowAsFolder).ToList();
-
-            if (string.IsNullOrEmpty(query.FolderId))
+            if (!string.IsNullOrEmpty(query.FolderId) || GetSlotRule(out _) is not DynamicChannelRule rule)
             {
-                return Result(folders.Select(CreateFolder).DistinctBy(f => f.Id));
+                return Result([]);
             }
 
-            StreamService.FromGuid(Guid.Parse(query.FolderId), out int prefix, out int folderKey, out int _, out int _);
-            RuleMatches? folder = prefix == StreamService.TeamFolderPrefix
-                ? folders.FirstOrDefault(f => f.Rule.FolderKey == folderKey)
-                : null;
-            return folder is null ? Result([]) : Result(CreateStreams(folder));
+            IReadOnlyList<RuleMatches> all = await sportsService.GetRuleMatchesAsync(cancellationToken).ConfigureAwait(false);
+            RuleMatches? matches = all.FirstOrDefault(m => m.Rule.FolderKey == rule.FolderKey);
+            return matches is null ? Result([]) : Result(CreateStreams(matches));
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to get team channel items");
+            logger.LogError(ex, "Failed to get items of team slot {Slot}", slot + 1);
             throw;
         }
     }
@@ -120,18 +181,6 @@ public class TeamsChannel(ILogger<TeamsChannel> logger, SportsService sportsServ
         {
             Items = list,
             TotalRecordCount = list.Count,
-        };
-    }
-
-    private static ChannelItemInfo CreateFolder(RuleMatches matches)
-    {
-        return new ChannelItemInfo()
-        {
-            Id = StreamService.ToGuid(StreamService.TeamFolderPrefix, matches.Rule.FolderKey, 0, 0).ToString(),
-            Name = matches.Rule.DisplayFolderName,
-            ImageUrl = matches.Schedule?.Team.LogoUrl,
-            Type = ChannelItemType.Folder,
-            FolderType = ChannelFolderType.Container,
         };
     }
 
@@ -176,5 +225,28 @@ public class TeamsChannel(ILogger<TeamsChannel> logger, SportsService sportsServ
             EndDate = game?.EndUtc,
             MediaSources = [Plugin.Instance.StreamService.GetMediaSourceInfo(StreamType.Live, match.Stream.StreamId)],
         };
+    }
+
+    private DynamicChannelRule? GetSlotRule(out string name)
+    {
+        IReadOnlyList<(DynamicChannelRule Rule, string Name)> rules = GetTeamRules();
+        if (slot < rules.Count)
+        {
+            name = rules[slot].Name;
+            return rules[slot].Rule;
+        }
+
+        name = string.Empty;
+        return null;
+    }
+
+    private RuleMatches? GetMatches()
+    {
+        if (GetSlotRule(out _) is not DynamicChannelRule rule)
+        {
+            return null;
+        }
+
+        return sportsService.GetRuleMatchesSnapshot().FirstOrDefault(m => m.Rule.FolderKey == rule.FolderKey);
     }
 }

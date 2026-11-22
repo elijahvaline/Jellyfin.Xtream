@@ -53,7 +53,7 @@ public partial class DynamicChannelRule
     public Collection<int> Categories { get; set; } = [];
 
     /// <summary>
-    /// Gets or sets a value indicating whether matched channels are also listed in a folder in the Xtream Teams channel.
+    /// Gets or sets a value indicating whether matched channels are also listed in a team library on the home screen (on game days for linked teams).
     /// </summary>
     public bool ShowAsFolder { get; set; }
 

@@ -48,6 +48,7 @@
     #XtreamLiveDynamicPage .dynamic-preview-name { flex: 1 1 18em; min-width: 0; word-break: break-word; }
     #XtreamLiveDynamicPage .dynamic-preview-category { all: unset; flex: none; padding: 0.15em 0.7em; border-radius: 1em; background: rgba(128, 128, 128, 0.2); font-size: 0.8em; white-space: nowrap; }
     #XtreamLiveDynamicPage button.dynamic-preview-category { cursor: pointer; }
+    #XtreamLiveDynamicPage button.dynamic-preview-category.is-selected { background: #00a4dc; color: #fff; }
     #XtreamLiveDynamicPage button.dynamic-preview-category:hover,
     #XtreamLiveDynamicPage button.dynamic-preview-category:focus-visible { background: rgba(128, 128, 128, 0.4); }
     #XtreamLiveDynamicPage li.is-hidden .dynamic-preview-name { text-decoration: line-through; opacity: 0.5; }
@@ -96,7 +97,7 @@
           <div class="dynamic-editor-flags">
             <label><input type="checkbox" id="RuleEnabled" /> <span>Enabled</span></label>
             <label><input type="checkbox" id="RuleFavorite" /> <span>Favorite matched channels</span></label>
-            <label><input type="checkbox" id="RuleShowAsFolder" /> <span>Show as folder in Xtream Teams</span></label>
+            <label><input type="checkbox" id="RuleShowAsFolder" /> <span>Show as team library</span></label>
           </div>
           <div class="inputContainer">
             <label class="inputLabel">Team schedule (optional)</label>
@@ -112,14 +113,15 @@
             <ul id="RuleTeamSchedule" class="dynamic-schedule"></ul>
             <div class="fieldDescription">
               Links the rule to the team's schedule from ESPN. Streams naming an opponent are matched to that game:
-              the Live TV guide shows the game at its real start time, and the team folder only lists the stream on game day.
-              Streams without an opponent in their name, like a team's 24/7 channel, are always listed.
+              the Live TV guide shows the game at its real start time. With "Show as team library" on, the team gets its own
+              library on the home screen that only appears on game days, listing that day's game streams and any streams without
+              an opponent in their name, like a team's 24/7 channel.
               The team's names are not added as keywords.
             </div>
           </div>
           <div class="inputContainer" id="RuleFolderNameContainer">
             <input is="emby-input" type="text" id="RuleFolderName" label="Folder name (optional)" />
-            <div class="fieldDescription">Defaults to the team name, or the keywords if no team is linked.</div>
+            <div class="fieldDescription">Name of the team library. Defaults to the team name, or the keywords if no team is linked.</div>
           </div>
           <div class="dynamic-editor-preview">
             <button is="emby-button" type="button" id="RulePreview" class="raised emby-button">

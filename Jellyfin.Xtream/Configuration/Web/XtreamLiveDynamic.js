@@ -12,7 +12,7 @@ export default function (view) {
   // Search box with live suggestions. Picked categories become removable chips.
   // An empty selection means "all categories".
   const MAX_SUGGESTIONS = 8;
-  const createCategorySearch = (categories, initial) => {
+  const createCategorySearch = (categories, initial, onChange = () => {}) => {
     const selected = new Set(initial);
     const byId = new Map(categories.map((c) => [c.Id, c]));
     const index = categories.map((c) => ({ category: c, name: (c.Name ?? '').toLowerCase() }));
@@ -29,6 +29,7 @@ export default function (view) {
       summary.textContent = selected.size === 0
         ? 'No categories selected: searching all categories.'
         : `Searching ${selected.size} selected ${selected.size === 1 ? 'category' : 'categories'}.`;
+      onChange();
       chips.replaceChildren(...[...selected].map((id) => {
         const remove = el('button', { type: 'button', title: 'Remove' }, [icon('close')]);
         remove.onclick = () => { selected.delete(id); renderChips(); search(); };
@@ -109,6 +110,7 @@ export default function (view) {
       getSelected: () => [...selected],
       has: (id) => selected.has(id),
       add: (id) => { if (byId.has(id)) { selected.add(id); renderChips(); } },
+      toggle: (id) => { if (selected.has(id)) selected.delete(id); else if (byId.has(id)) selected.add(id); renderChips(); },
       destroy: () => {},
     };
   };
@@ -248,7 +250,7 @@ export default function (view) {
             el('td', { className: 'dynamic-keyword' }, [rule.Keyword]),
             el('td', { className: 'dynamic-categories', title: rule.Categories.map((id) => categoryNames.get(id) ?? `#${id}`).join('\n') }, [categorySummary(rule.Categories)]),
             el('td', {}, [favorite]),
-            el('td', { className: 'dynamic-teamcell', title: rule.ShowAsFolder ? 'Shown as a folder in Xtream Teams' : '' }, [
+            el('td', { className: 'dynamic-teamcell', title: rule.ShowAsFolder ? 'Shown as a team library on the home screen' : '' }, [
               ...(rule.ShowAsFolder ? [icon('folder')] : []),
               rule.TeamName || (rule.ShowAsFolder ? 'Folder' : '—'),
             ]),
@@ -294,7 +296,12 @@ export default function (view) {
         $('#RuleLeague').value = rule.League;
         renderTeams(rule.League, rule.TeamId, rule.TeamName);
         $('#RulePreviewList').replaceChildren();
-        picker = createCategorySearch(categories, rule.Categories);
+        // Keep the category tags in an open preview in sync with the selection, without re-running it.
+        picker = createCategorySearch(categories, rule.Categories, () => {
+          for (const tag of view.querySelectorAll('#RulePreviewList button.dynamic-preview-category')) {
+            tag.classList.toggle('is-selected', picker?.has(Number(tag.dataset.categoryId)) === true);
+          }
+        });
         $('#RuleCategories').replaceChildren(picker.element);
         editor.hidden = false;
         editor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -389,11 +396,10 @@ export default function (view) {
             return;
           }
           const header = el('li', { className: 'dynamic-preview-header' });
-          const filtered = rule.Categories.length > 0;
           const updateHeader = () => {
             const n = channels.filter((c) => hidden.has(c.Id)).length;
             header.textContent = `${channels.length - n} of ${channels.length} channels will be added` + (n ? ` (${n} hidden)` : '') + '. Tick "Hide" to always leave a channel out.'
-              + (filtered ? '' : ' Click a category to limit the rule to it.');
+              + ' Click categories to limit the rule to them (click again to remove), then preview again to see the result.';
           };
           list.appendChild(header);
           for (const c of channels) {
@@ -411,13 +417,11 @@ export default function (view) {
             }
             if (c.CategoryId != null) {
               const name = categoryNames.get(c.CategoryId) ?? `#${c.CategoryId}`;
-              if (picker.has(c.CategoryId)) {
-                li.appendChild(el('span', { className: 'dynamic-preview-category', title: 'Category' }, [name]));
-              } else {
-                const tag = el('button', { type: 'button', className: 'dynamic-preview-category', title: 'Limit this rule to this category' }, [name]);
-                tag.onclick = () => { picker.add(c.CategoryId); runPreview(); };
-                li.appendChild(tag);
-              }
+              const tag = el('button', { type: 'button', className: 'dynamic-preview-category', title: 'Limit this rule to this category (click again to remove)' }, [name]);
+              tag.dataset.categoryId = String(c.CategoryId);
+              tag.classList.toggle('is-selected', picker.has(c.CategoryId));
+              tag.onclick = () => picker.toggle(c.CategoryId);
+              li.appendChild(tag);
             }
             box.onchange = () => {
               box.checked ? hidden.add(c.Id) : hidden.delete(c.Id);
