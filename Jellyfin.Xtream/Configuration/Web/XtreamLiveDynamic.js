@@ -134,7 +134,7 @@ export default function (view) {
     const fetchMatches = (rules) => ApiClient.fetch({
       type: 'POST',
       url: ApiClient.getUrl('Xtream/LiveTv/DynamicMatches'),
-      data: JSON.stringify(rules.map((r) => ({ Keyword: r.Keyword, Categories: r.Categories, Enabled: true }))),
+      data: JSON.stringify(rules.map((r) => ({ Keyword: r.Keyword, Categories: r.Categories, Enabled: true, League: r.League, TeamId: r.TeamId }))),
       contentType: 'application/json',
       dataType: 'json',
     });
@@ -142,14 +142,43 @@ export default function (view) {
     Promise.all([
       ApiClient.getPluginConfiguration(pluginId),
       Xtream.fetchJson('Xtream/LiveCategories'),
-    ]).then(([config, categories]) => {
+      Xtream.fetchJson('Xtream/Sports/Leagues').catch(() => []),
+    ]).then(([config, categories, leagues]) => {
       const categoryNames = new Map(categories.map((c) => [c.Id, c.Name]));
       const rules = (config.LiveTvDynamic ?? []).map((r) => ({
         Keyword: r.Keyword ?? '',
         Enabled: r.Enabled !== false,
         Favorite: r.Favorite !== false,
         Categories: r.Categories ?? [],
+        ShowAsFolder: r.ShowAsFolder === true,
+        FolderName: r.FolderName ?? '',
+        League: r.League ?? '',
+        TeamId: r.TeamId ?? '',
+        TeamName: r.TeamName ?? '',
       }));
+      const teamCache = new Map(); // league id -> Promise of teams
+
+      // Time zone: default to the browser's own zone when not configured yet.
+      const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const zoneSelect = $('#SportsTimeZone');
+      const zones = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [browserZone];
+      const currentZone = config.SportsTimeZone || browserZone;
+      zoneSelect.replaceChildren(...[...new Set([currentZone, ...zones])].sort().map((z) => el('option', { value: z, textContent: z })));
+      zoneSelect.value = currentZone;
+      zoneSelect.onchange = () => markDirty();
+      if (!config.SportsTimeZone && rules.some((r) => r.TeamId)) {
+        // Linked teams without a saved zone would use the server's (often UTC): nudge to save.
+        setTimeout(() => markDirty(), 0);
+      }
+
+      const loadTeams = (league) => {
+        if (!teamCache.has(league)) {
+          const promise = Xtream.fetchJson(`Xtream/Sports/Teams?league=${encodeURIComponent(league)}`);
+          promise.catch(() => teamCache.delete(league));
+          teamCache.set(league, promise);
+        }
+        return teamCache.get(league);
+      };
       // Channels (by stream id) that dynamic rules must never add.
       const hidden = new Set(config.LiveTvDynamicHidden ?? []);
       let matches = []; // matches[i] = channels for rules[i], or undefined while loading
@@ -167,7 +196,7 @@ export default function (view) {
       const renderTable = () => {
         tbody.replaceChildren();
         if (rules.length === 0) {
-          const td = el('td', { colSpan: 6, className: 'dynamic-empty' }, ['No dynamic rules yet. Click + to add one.']);
+          const td = el('td', { colSpan: 7, className: 'dynamic-empty' }, ['No dynamic rules yet. Click + to add one.']);
           tbody.appendChild(el('tr', {}, [td]));
           return;
         }
@@ -197,8 +226,8 @@ export default function (view) {
             };
             if (hiddenCount > 0) btn.title = `${hiddenCount} hidden`;
             matchCell.appendChild(btn);
-            details.appendChild(el('td', { colSpan: 6 }, [
-              el('ul', {}, found.map((c) => el('li', {}, [c.Name]))),
+            details.appendChild(el('td', { colSpan: 7 }, [
+              el('ul', {}, found.map((c) => el('li', {}, [c.Name + (c.Game ? `  (${c.Game})` : '')]))),
             ]));
           }
 
@@ -219,6 +248,10 @@ export default function (view) {
             el('td', { className: 'dynamic-keyword' }, [rule.Keyword]),
             el('td', { className: 'dynamic-categories', title: rule.Categories.map((id) => categoryNames.get(id) ?? `#${id}`).join('\n') }, [categorySummary(rule.Categories)]),
             el('td', {}, [favorite]),
+            el('td', { className: 'dynamic-teamcell', title: rule.ShowAsFolder ? 'Shown as a folder in Xtream Teams' : '' }, [
+              ...(rule.ShowAsFolder ? [icon('folder')] : []),
+              rule.TeamName || (rule.ShowAsFolder ? 'Folder' : '—'),
+            ]),
             matchCell,
             el('td', { className: 'dynamic-actions' }, [edit, remove]),
           ]);
@@ -248,11 +281,18 @@ export default function (view) {
       const openEditor = (index) => {
         closeEditor();
         editing = index;
-        const rule = index >= 0 ? rules[index] : { Keyword: '', Enabled: true, Favorite: true, Categories: [] };
+        const rule = index >= 0 ? rules[index] : { Keyword: '', Enabled: true, Favorite: true, Categories: [], ShowAsFolder: false, FolderName: '', League: '', TeamId: '', TeamName: '' };
         $('#RuleEditorTitle').textContent = index >= 0 ? 'Edit rule' : 'New rule';
         $('#RuleKeyword').value = rule.Keyword;
         $('#RuleEnabled').checked = rule.Enabled;
         $('#RuleFavorite').checked = rule.Favorite;
+        $('#RuleShowAsFolder').checked = rule.ShowAsFolder;
+        $('#RuleFolderName').value = rule.FolderName;
+        $('#RuleLeague').replaceChildren(
+          el('option', { value: '', textContent: 'None' }),
+          ...leagues.map((l) => el('option', { value: l.Id, textContent: l.Name })));
+        $('#RuleLeague').value = rule.League;
+        renderTeams(rule.League, rule.TeamId, rule.TeamName);
         $('#RulePreviewList').replaceChildren();
         picker = createCategorySearch(categories, rule.Categories);
         $('#RuleCategories').replaceChildren(picker.element);
@@ -267,7 +307,58 @@ export default function (view) {
         Enabled: $('#RuleEnabled').checked,
         Favorite: $('#RuleFavorite').checked,
         Categories: picker.getSelected(),
+        ShowAsFolder: $('#RuleShowAsFolder').checked,
+        FolderName: $('#RuleFolderName').value.trim(),
+        League: $('#RuleTeam').value ? $('#RuleLeague').value : '',
+        TeamId: $('#RuleTeam').value,
+        TeamName: $('#RuleTeam').value ? ($('#RuleTeam').selectedOptions[0]?.textContent ?? '') : '',
       });
+
+      // Fills the team list for a league and shows the selected team's logo and next games.
+      let teamRequest = 0;
+      const renderTeams = (league, teamId, teamName) => {
+        const select = $('#RuleTeam');
+        const request = ++teamRequest;
+        select.replaceChildren(el('option', { value: '', textContent: league ? 'Loading…' : 'Pick a league first' }));
+        select.disabled = true;
+        showTeam(null);
+        if (!league) return;
+        loadTeams(league).then((teams) => {
+          if (request !== teamRequest) return;
+          select.replaceChildren(
+            el('option', { value: '', textContent: 'None' }),
+            ...teams.map((t) => el('option', { value: t.Id, textContent: t.Name })));
+          if (teamId && !teams.some((t) => t.Id === teamId)) {
+            select.appendChild(el('option', { value: teamId, textContent: teamName || `#${teamId}` }));
+          }
+          select.value = teamId ?? '';
+          select.disabled = false;
+          showTeam(teams.find((t) => t.Id === select.value) ?? null, league);
+        }).catch(() => {
+          if (request !== teamRequest) return;
+          select.replaceChildren(el('option', { value: teamId ?? '', textContent: teamName || 'Failed to load teams from ESPN' }));
+        });
+      };
+      const showTeam = (team, league) => {
+        const logo = $('#RuleTeamLogo');
+        const schedule = $('#RuleTeamSchedule');
+        logo.src = team?.LogoUrl ?? '';
+        schedule.replaceChildren();
+        if (!team) return;
+        Xtream.fetchJson(`Xtream/Sports/Schedule?league=${encodeURIComponent(league)}&teamId=${encodeURIComponent(team.Id)}`)
+          .then((games) => {
+            if ($('#RuleTeam').value !== team.Id) return;
+            schedule.replaceChildren(...(games.length
+              ? [el('li', { className: 'dynamic-preview-header', textContent: 'Next games:' }), ...games.map((g) => el('li', { textContent: g }))]
+              : [el('li', { textContent: 'No upcoming games.' })]));
+          })
+          .catch(() => schedule.replaceChildren(el('li', { textContent: 'Could not load the schedule from ESPN.' })));
+      };
+      $('#RuleLeague').onchange = () => renderTeams($('#RuleLeague').value, '', '');
+      $('#RuleTeam').onchange = () => {
+        const league = $('#RuleLeague').value;
+        loadTeams(league).then((teams) => showTeam(teams.find((t) => t.Id === $('#RuleTeam').value) ?? null, league));
+      };
 
       $('#AddRule').onclick = () => openEditor(-1);
       $('#RuleCancel').onclick = closeEditor;
@@ -311,6 +402,13 @@ export default function (view) {
               el('label', { className: 'dynamic-hide' }, [box, el('span', {}, ['Hide'])]),
               el('span', { className: 'dynamic-preview-name' }, [c.Name]),
             ]);
+            if (rule.TeamId) {
+              li.appendChild(el('span', {
+                className: 'dynamic-preview-game',
+                title: c.ListedToday === false ? 'Listed in the team folder on game day' : '',
+              }, [c.Game ?? 'No game matched: always listed']));
+              if (c.ListedToday === false) li.classList.add('not-today');
+            }
             if (c.CategoryId != null) {
               const name = categoryNames.get(c.CategoryId) ?? `#${c.CategoryId}`;
               if (picker.has(c.CategoryId)) {
@@ -323,7 +421,7 @@ export default function (view) {
             }
             box.onchange = () => {
               box.checked ? hidden.add(c.Id) : hidden.delete(c.Id);
-              li.className = box.checked ? 'is-hidden' : '';
+              li.classList.toggle('is-hidden', box.checked);
               updateHeader();
               markDirty();
               renderTable();
@@ -344,6 +442,7 @@ export default function (view) {
         ApiClient.getPluginConfiguration(pluginId).then((latest) => {
           latest.LiveTvDynamic = rules.filter((r) => r.Keyword.trim().length > 0);
           latest.LiveTvDynamicHidden = [...hidden];
+          latest.SportsTimeZone = zoneSelect.value;
           return ApiClient.updatePluginConfiguration(pluginId, latest);
         }).then((result) => {
           unsaved.hidden = true;
@@ -357,7 +456,7 @@ export default function (view) {
     }).catch((error) => {
       console.error('Failed to load dynamic channel configuration:', error);
       Dashboard.hideLoadingMsg();
-      const td = el('td', { colSpan: 6 }, [
+      const td = el('td', { colSpan: 7 }, [
         'Failed to load categories. Check that your Xtream credentials are set (Credentials tab) and the server is reachable.',
       ]);
       td.style.color = '#ff6b6b';

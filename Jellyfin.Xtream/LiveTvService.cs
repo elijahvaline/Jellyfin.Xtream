@@ -22,6 +22,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Xtream.Client;
 using Jellyfin.Xtream.Client.Models;
+using Jellyfin.Xtream.Configuration;
 using Jellyfin.Xtream.Service;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Library;
@@ -43,7 +44,8 @@ namespace Jellyfin.Xtream;
 /// <param name="logger">Instance of the <see cref="ILogger"/> interface.</param>
 /// <param name="memoryCache">Instance of the <see cref="IMemoryCache"/> interface.</param>
 /// <param name="xtreamClient">Instance of the <see cref="IXtreamClient"/> interface.</param>
-public class LiveTvService(IServerApplicationHost appHost, IHttpClientFactory httpClientFactory, ILogger<LiveTvService> logger, IMemoryCache memoryCache, IXtreamClient xtreamClient) : ILiveTvService, ISupportsDirectStreamProvider
+/// <param name="sportsService">Instance of the <see cref="SportsService"/> class.</param>
+public class LiveTvService(IServerApplicationHost appHost, IHttpClientFactory httpClientFactory, ILogger<LiveTvService> logger, IMemoryCache memoryCache, IXtreamClient xtreamClient, SportsService sportsService) : ILiveTvService, ISupportsDirectStreamProvider
 {
     /// <summary>
     /// The name of this Live TV service, as stored on the channel items by Jellyfin.
@@ -197,9 +199,60 @@ public class LiveTvService(IServerApplicationHost appHost, IHttpClientFactory ht
             memoryCache.Set(key, items, DateTimeOffset.Now.AddMinutes(10));
         }
 
-        return from epg in items
+        IEnumerable<ProgramInfo> programs = items ?? [];
+        ProgramInfo? game = await GetGameProgramAsync(channelId, streamId, cancellationToken).ConfigureAwait(false);
+        if (game is not null)
+        {
+            // The real game replaces whatever the provider lists during the game.
+            programs = programs
+                .Where(p => p.EndDate <= game.StartDate || p.StartDate >= game.EndDate)
+                .Append(game)
+                .OrderBy(p => p.StartDate);
+        }
+
+        return from epg in programs
                where epg.EndDate >= startDateUtc && epg.StartDate < endDateUtc
                select epg;
+    }
+
+    /// <summary>
+    /// Creates a guide entry with the real start time for a stream that a team-linked dynamic rule matched to a game.
+    /// </summary>
+    private async Task<ProgramInfo?> GetGameProgramAsync(string channelId, int streamId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            foreach (RuleMatches matches in await sportsService.GetRuleMatchesAsync(cancellationToken).ConfigureAwait(false))
+            {
+                SportsGame? game = matches.Streams.FirstOrDefault(s => s.Stream.StreamId == streamId && s.Game is not null)?.Game;
+                if (game is null || !game.TimeValid)
+                {
+                    continue;
+                }
+
+                string overview = SportsService.FormatStart(game, includeDay: true)
+                    + (string.IsNullOrEmpty(game.Broadcast) ? string.Empty : $" on {game.Broadcast}");
+                return new ProgramInfo()
+                {
+                    Id = StreamService.ToGuid(StreamService.SportsEpgPrefix, streamId, DynamicChannelRule.StableHash(game.Id), 0).ToString(),
+                    ChannelId = channelId,
+                    Name = game.Name,
+                    Overview = overview,
+                    StartDate = game.StartUtc,
+                    EndDate = game.EndUtc,
+                    IsSports = true,
+                    IsLive = true,
+                    Genres = ["Sports"],
+                    ImageUrl = matches.Schedule?.Team.LogoUrl,
+                };
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Failed to add the game schedule to the guide of channel {ChannelId}", channelId);
+        }
+
+        return null;
     }
 
     /// <inheritdoc />

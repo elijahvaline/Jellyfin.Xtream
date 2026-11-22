@@ -44,4 +44,14 @@ public class ChannelResponse
     /// Gets or sets the id of the category the TV channel belongs to.
     /// </summary>
     public int? CategoryId { get; set; }
+
+    /// <summary>
+    /// Gets or sets a description of the game this channel shows, for rules linked to a team.
+    /// </summary>
+    public string? Game { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this channel is listed in the team folder right now.
+    /// </summary>
+    public bool? ListedToday { get; set; }
 }

@@ -23,6 +23,7 @@ using Jellyfin.Xtream.Api.Models;
 using Jellyfin.Xtream.Client;
 using Jellyfin.Xtream.Client.Models;
 using Jellyfin.Xtream.Configuration;
+using Jellyfin.Xtream.Service;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -32,10 +33,12 @@ namespace Jellyfin.Xtream.Api;
 /// <summary>
 /// The Jellyfin Xtream configuration API.
 /// </summary>
+/// <param name="xtreamClient">Instance of the <see cref="IXtreamClient"/> interface.</param>
+/// <param name="sportsService">Instance of the <see cref="SportsService"/> class.</param>
 [ApiController]
 [Route("[controller]")]
 [Produces(MediaTypeNames.Application.Json)]
-public class XtreamController(IXtreamClient xtreamClient) : ControllerBase
+public class XtreamController(IXtreamClient xtreamClient, SportsService sportsService) : ControllerBase
 {
     private static CategoryResponse CreateCategoryResponse(Category category) =>
         new()
@@ -216,9 +219,83 @@ public class XtreamController(IXtreamClient xtreamClient) : ControllerBase
         }
 
         List<StreamInfo> streams = await xtreamClient.GetLiveStreamsAsync(Plugin.Instance.Creds, cancellationToken).ConfigureAwait(false);
-        return Ok(rules
-            .Select(rule => streams.Where(s => rule.Matches(s.CategoryId, s.Name)).Select(CreateChannelResponse).ToList())
-            .ToList());
+        DateTime now = DateTime.UtcNow;
+        List<List<ChannelResponse>> result = [];
+        foreach (DynamicChannelRule rule in rules)
+        {
+            TeamSchedule? schedule = rule.HasTeam
+                ? await sportsService.GetScheduleAsync(rule.League, rule.TeamId, cancellationToken).ConfigureAwait(false)
+                : null;
+            result.Add(streams.Where(s => rule.Matches(s.CategoryId, s.Name)).Select(s =>
+            {
+                ChannelResponse response = CreateChannelResponse(s);
+                if (schedule is not null)
+                {
+                    SportsGame? game = SportsService.MatchGame(schedule, s.Name, now);
+                    response.Game = game is null
+                        ? null
+                        : $"{game.ShortName} · {SportsService.FormatStart(game, includeDay: true)}";
+                    response.ListedToday = game is null || SportsService.IsGameDay(game, now);
+                }
+
+                return response;
+            }).ToList());
+        }
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get the leagues for which team schedules can be looked up.
+    /// </summary>
+    /// <returns>The leagues.</returns>
+    [Authorize(Policy = "RequiresElevation")]
+    [HttpGet("Sports/Leagues")]
+    public ActionResult<IEnumerable<SportsLeague>> GetSportsLeagues()
+    {
+        return Ok(SportsService.Leagues);
+    }
+
+    /// <summary>
+    /// Get the teams of a league.
+    /// </summary>
+    /// <param name="league">The league id, e.g. <c>basketball/nba</c>.</param>
+    /// <param name="cancellationToken">The cancellation token for cancelling requests.</param>
+    /// <returns>The teams.</returns>
+    [Authorize(Policy = "RequiresElevation")]
+    [HttpGet("Sports/Teams")]
+    public async Task<ActionResult<IEnumerable<SportsTeam>>> GetSportsTeams([FromQuery] string league, CancellationToken cancellationToken)
+    {
+        if (!SportsService.IsSupportedLeague(league))
+        {
+            return BadRequest("Unsupported league");
+        }
+
+        return Ok(await sportsService.GetTeamsAsync(league, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// Get the upcoming games of a team.
+    /// </summary>
+    /// <param name="league">The league id, e.g. <c>basketball/nba</c>.</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="cancellationToken">The cancellation token for cancelling requests.</param>
+    /// <returns>The next few games, formatted for display.</returns>
+    [Authorize(Policy = "RequiresElevation")]
+    [HttpGet("Sports/Schedule")]
+    public async Task<ActionResult<IEnumerable<string>>> GetSportsSchedule([FromQuery] string league, [FromQuery] string teamId, CancellationToken cancellationToken)
+    {
+        TeamSchedule? schedule = await sportsService.GetScheduleAsync(league, teamId, cancellationToken).ConfigureAwait(false);
+        if (schedule is null)
+        {
+            return NotFound();
+        }
+
+        DateTime now = DateTime.UtcNow;
+        return Ok(schedule.Games
+            .Where(g => g.EndUtc >= now)
+            .Take(3)
+            .Select(g => $"{g.Name} · {SportsService.FormatStart(g, includeDay: true)}"));
     }
 
     /// <summary>

@@ -94,5 +94,11 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets the stream ids which dynamic rules must never add, even when their name matches.
     /// </summary>
     public Collection<int> LiveTvDynamicHidden { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the IANA time zone (e.g. <c>America/Chicago</c>) used to decide which day a game is on
+    /// and to display game times. When empty, the server's time zone is used.
+    /// </summary>
+    public string SportsTimeZone { get; set; } = string.Empty;
 }
 #pragma warning restore CA2227

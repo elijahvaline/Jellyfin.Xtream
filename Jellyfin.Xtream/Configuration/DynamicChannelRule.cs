@@ -53,6 +53,74 @@ public partial class DynamicChannelRule
     public Collection<int> Categories { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets a value indicating whether matched channels are also listed in a folder in the Xtream Teams channel.
+    /// </summary>
+    public bool ShowAsFolder { get; set; }
+
+    /// <summary>
+    /// Gets or sets the folder name. When empty, the linked team's name or the keywords are used.
+    /// </summary>
+    public string FolderName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the ESPN league path of the linked team, e.g. <c>basketball/nba</c>. Empty when no team is linked.
+    /// </summary>
+    public string League { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the ESPN id of the linked team. Empty when no team is linked.
+    /// </summary>
+    public string TeamId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the display name of the linked team, kept so it can be shown without querying ESPN.
+    /// </summary>
+    public string TeamName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets a value indicating whether this rule is linked to a team schedule.
+    /// </summary>
+    [System.Xml.Serialization.XmlIgnore]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasTeam => !string.IsNullOrWhiteSpace(League) && !string.IsNullOrWhiteSpace(TeamId);
+
+    /// <summary>
+    /// Gets the display name of the folder for this rule.
+    /// </summary>
+    [System.Xml.Serialization.XmlIgnore]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string DisplayFolderName =>
+        !string.IsNullOrWhiteSpace(FolderName) ? FolderName.Trim()
+        : HasTeam && !string.IsNullOrWhiteSpace(TeamName) ? TeamName
+        : Keyword.Trim();
+
+    /// <summary>
+    /// Gets a stable identifier for this rule's folder, derived from what the rule matches.
+    /// </summary>
+    [System.Xml.Serialization.XmlIgnore]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int FolderKey => StableHash($"{Keyword.Trim().ToUpperInvariant()}|{League}|{TeamId}");
+
+    /// <summary>
+    /// Computes a hash which, unlike <see cref="string.GetHashCode()"/>, is the same in every process.
+    /// </summary>
+    /// <param name="value">The value to hash.</param>
+    /// <returns>The FNV-1a hash of the value.</returns>
+    public static int StableHash(string value)
+    {
+        unchecked
+        {
+            uint hash = 2166136261;
+            foreach (char c in value)
+            {
+                hash = (hash ^ c) * 16777619;
+            }
+
+            return (int)hash;
+        }
+    }
+
+    /// <summary>
     /// Splits a keyword string into its search terms: double-quoted phrases and single words.
     /// </summary>
     /// <param name="keyword">The keyword string.</param>

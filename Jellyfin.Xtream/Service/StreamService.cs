@@ -91,6 +91,21 @@ public partial class StreamService(IXtreamClient xtreamClient)
     /// </summary>
     public const int EpgPrefix = 0x5d774c3f;
 
+    /// <summary>
+    /// The id prefix for team folder channel items.
+    /// </summary>
+    public const int TeamFolderPrefix = 0x5d774c40;
+
+    /// <summary>
+    /// The id prefix for stream items inside team folders.
+    /// </summary>
+    public const int TeamStreamPrefix = 0x5d774c41;
+
+    /// <summary>
+    /// The id prefix for TV guide entries created from team schedules.
+    /// </summary>
+    public const int SportsEpgPrefix = 0x5d774c42;
+
     private static readonly Regex _tagRegex = TagRegex();
 
     /// <summary>

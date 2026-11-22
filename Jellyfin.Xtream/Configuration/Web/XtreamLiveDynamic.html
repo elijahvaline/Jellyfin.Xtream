@@ -1,5 +1,5 @@
 <div id="XtreamLiveDynamicPage" data-role="page" class="page type-interior pluginConfigurationPage withTabs"
-  data-require="emby-input,emby-button,emby-checkbox" data-controller="__plugin/XtreamLiveDynamic.js">
+  data-require="emby-input,emby-button,emby-checkbox,emby-select" data-controller="__plugin/XtreamLiveDynamic.js">
   <style>
     /* Inline so these styles ship with the page and are never shadowed by a cached stylesheet. */
     #XtreamLiveDynamicPage .dynamic-table { width: 100%; border-collapse: collapse; }
@@ -51,6 +51,17 @@
     #XtreamLiveDynamicPage button.dynamic-preview-category:hover,
     #XtreamLiveDynamicPage button.dynamic-preview-category:focus-visible { background: rgba(128, 128, 128, 0.4); }
     #XtreamLiveDynamicPage li.is-hidden .dynamic-preview-name { text-decoration: line-through; opacity: 0.5; }
+    #XtreamLiveDynamicPage .dynamic-preview-game { flex: none; font-size: 0.8em; opacity: 0.85; white-space: nowrap; }
+    #XtreamLiveDynamicPage li.not-today .dynamic-preview-game { opacity: 0.5; font-style: italic; }
+
+    /* Team & folder */
+    #XtreamLiveDynamicPage .dynamic-team { display: flex; flex-wrap: wrap; gap: 0.8em 1em; align-items: flex-end; }
+    #XtreamLiveDynamicPage .dynamic-team > .selectContainer { flex: 1 1 14em; margin: 0; }
+    #XtreamLiveDynamicPage .dynamic-team-logo { width: 2.6em; height: 2.6em; object-fit: contain; }
+    #XtreamLiveDynamicPage .dynamic-team-logo[src=""] { display: none; }
+    #XtreamLiveDynamicPage .dynamic-schedule { margin: 0.5em 0 0; padding-left: 1.2em; opacity: 0.85; }
+    #XtreamLiveDynamicPage .dynamic-table .dynamic-teamcell { white-space: nowrap; }
+    #XtreamLiveDynamicPage .dynamic-table .dynamic-teamcell .material-icons { font-size: 1.1em; vertical-align: middle; margin-right: 0.2em; }
   </style>
   <div data-role="content">
     <div class="content-primary">
@@ -85,6 +96,30 @@
           <div class="dynamic-editor-flags">
             <label><input type="checkbox" id="RuleEnabled" /> <span>Enabled</span></label>
             <label><input type="checkbox" id="RuleFavorite" /> <span>Favorite matched channels</span></label>
+            <label><input type="checkbox" id="RuleShowAsFolder" /> <span>Show as folder in Xtream Teams</span></label>
+          </div>
+          <div class="inputContainer">
+            <label class="inputLabel">Team schedule (optional)</label>
+            <div class="dynamic-team">
+              <div class="selectContainer">
+                <select is="emby-select" id="RuleLeague" label="League"></select>
+              </div>
+              <div class="selectContainer">
+                <select is="emby-select" id="RuleTeam" label="Team"></select>
+              </div>
+              <img id="RuleTeamLogo" class="dynamic-team-logo" src="" alt="" />
+            </div>
+            <ul id="RuleTeamSchedule" class="dynamic-schedule"></ul>
+            <div class="fieldDescription">
+              Links the rule to the team's schedule from ESPN. Streams naming an opponent are matched to that game:
+              the Live TV guide shows the game at its real start time, and the team folder only lists the stream on game day.
+              Streams without an opponent in their name, like a team's 24/7 channel, are always listed.
+              The team's names are not added as keywords.
+            </div>
+          </div>
+          <div class="inputContainer" id="RuleFolderNameContainer">
+            <input is="emby-input" type="text" id="RuleFolderName" label="Folder name (optional)" />
+            <div class="fieldDescription">Defaults to the team name, or the keywords if no team is linked.</div>
           </div>
           <div class="dynamic-editor-preview">
             <button is="emby-button" type="button" id="RulePreview" class="raised emby-button">
@@ -110,12 +145,20 @@
                 <th>Keywords</th>
                 <th>Categories</th>
                 <th title="Favorite matched channels">Fav</th>
+                <th>Team / folder</th>
                 <th>Matches</th>
                 <th></th>
               </tr>
             </thead>
             <tbody id="DynamicRules"></tbody>
           </table>
+        </div>
+
+        <div class="selectContainer">
+          <select is="emby-select" id="SportsTimeZone" label="Time zone for game days and times"></select>
+          <div class="fieldDescription">
+            Used to decide which day a game is on and to show game times. Servers often run in UTC, so pick your own time zone.
+          </div>
         </div>
 
         <div id="UnsavedNote" class="fieldDescription dynamic-unsaved" hidden>
