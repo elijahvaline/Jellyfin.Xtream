@@ -201,7 +201,7 @@ public class CatchupChannel(ILogger<CatchupChannel> logger, IXtreamClient xtream
                             Id = StreamService.ToGuid(StreamService.CatchupStreamPrefix, channelId, 0, day).ToString(),
                             IsLiveStream = false,
                             MediaSources = [
-                                plugin.StreamService.GetMediaSourceInfo(StreamType.CatchUp, channelId, start: start, durationMinutes: durationMinutes)
+                                StreamService.ForChannelItem(plugin.StreamService.GetMediaSourceInfo(StreamType.CatchUp, channelId, start: start, durationMinutes: durationMinutes))
                             ],
                             MediaType = ChannelMediaType.Video,
                             Name = $"No EPG available",
@@ -219,7 +219,7 @@ public class CatchupChannel(ILogger<CatchupChannel> logger, IXtreamClient xtream
             int durationMinutes = (int)Math.Ceiling((epg.End - epg.Start).TotalMinutes);
             string dateTitle = epg.Start.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture);
             List<MediaSourceInfo> sources = [
-                plugin.StreamService.GetMediaSourceInfo(StreamType.CatchUp, channelId, start: epg.StartLocalTime, durationMinutes: durationMinutes)
+                StreamService.ForChannelItem(plugin.StreamService.GetMediaSourceInfo(StreamType.CatchUp, channelId, start: epg.StartLocalTime, durationMinutes: durationMinutes))
             ];
 
             items.Add(new()

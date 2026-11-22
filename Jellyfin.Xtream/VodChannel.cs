@@ -121,10 +121,10 @@ public class VodChannel(ILogger<VodChannel> logger) : IChannel, IDisableMediaSou
 
         List<MediaSourceInfo> sources =
         [
-            Plugin.Instance.StreamService.GetMediaSourceInfo(
+            StreamService.ForChannelItem(Plugin.Instance.StreamService.GetMediaSourceInfo(
                 StreamType.Vod,
                 stream.StreamId,
-                stream.ContainerExtension)
+                stream.ContainerExtension))
         ];
 
         ChannelItemInfo result = new ChannelItemInfo()

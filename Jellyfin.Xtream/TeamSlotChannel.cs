@@ -45,11 +45,6 @@ public class TeamSlotChannel(int slot, ILogger<TeamSlotChannel> logger, SportsSe
     /// </summary>
     public const int SlotCount = 20;
 
-    /// <summary>
-    /// How often the stream list is refreshed, so game-day streams appear and disappear on time.
-    /// </summary>
-    private static readonly TimeSpan _refreshInterval = TimeSpan.FromMinutes(15);
-
     /// <inheritdoc />
     /// <remarks>
     /// Jellyfin derives the channel's id from its name, so each team keeps its own library (and image)
@@ -61,8 +56,22 @@ public class TeamSlotChannel(int slot, ILogger<TeamSlotChannel> logger, SportsSe
     public string? Description => "Every stream for this team, listed on game days.";
 
     /// <inheritdoc />
-    public string DataVersion =>
-        Plugin.Instance.DataVersion + Name + (DateTime.UtcNow.Ticks / _refreshInterval.Ticks).ToString(CultureInfo.InvariantCulture);
+    /// <remarks>
+    /// Jellyfin re-reads the items only when this changes: that is when the configuration changes, or when
+    /// the streams listed right now change (new matches after a guide refresh, or a game day starting or ending).
+    /// Working that out uses only cached matches, so it never contacts the provider or ESPN.
+    /// </remarks>
+    public string DataVersion
+    {
+        get
+        {
+            RuleMatches? matches = GetMatches();
+            string listed = matches is null
+                ? string.Empty
+                : string.Join(',', ListedStreams(matches, DateTime.UtcNow).Select(s => $"{s.Stream.StreamId}:{s.Game?.Id}"));
+            return Plugin.Instance.DataVersion + Name + DynamicChannelRule.StableHash(listed).ToString(CultureInfo.InvariantCulture);
+        }
+    }
 
     /// <inheritdoc />
     public string HomePageUrl => string.Empty;
@@ -184,16 +193,15 @@ public class TeamSlotChannel(int slot, ILogger<TeamSlotChannel> logger, SportsSe
         };
     }
 
-    private static IEnumerable<ChannelItemInfo> CreateStreams(RuleMatches matches)
-    {
-        DateTime now = DateTime.UtcNow;
-        return matches.Streams
-            .Where(s => s.Game is null || SportsService.IsGameDay(s.Game, now))
+    private static IEnumerable<MatchedChannel> ListedStreams(RuleMatches matches, DateTime nowUtc) =>
+        matches.Streams
+            .Where(s => s.Game is null || SportsService.IsGameDay(s.Game, nowUtc))
             .OrderBy(s => s.Game is null ? 1 : 0)
             .ThenBy(s => s.Game?.StartUtc)
-            .ThenBy(s => s.Stream.Name, StringComparer.OrdinalIgnoreCase)
-            .Select((s, index) => CreateStream(matches, s, index));
-    }
+            .ThenBy(s => s.Stream.Name, StringComparer.OrdinalIgnoreCase);
+
+    private static IEnumerable<ChannelItemInfo> CreateStreams(RuleMatches matches) =>
+        ListedStreams(matches, DateTime.UtcNow).Select((s, index) => CreateStream(matches, s, index));
 
     private static ChannelItemInfo CreateStream(RuleMatches matches, MatchedChannel match, int index)
     {
@@ -223,7 +231,7 @@ public class TeamSlotChannel(int slot, ILogger<TeamSlotChannel> logger, SportsSe
             IsLiveStream = true,
             StartDate = game?.StartUtc,
             EndDate = game?.EndUtc,
-            MediaSources = [Plugin.Instance.StreamService.GetMediaSourceInfo(StreamType.Live, match.Stream.StreamId)],
+            MediaSources = [StreamService.ForChannelItem(Plugin.Instance.StreamService.GetMediaSourceInfo(StreamType.Live, match.Stream.StreamId))],
         };
     }
 

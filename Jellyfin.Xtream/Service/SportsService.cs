@@ -40,17 +40,16 @@ namespace Jellyfin.Xtream.Service;
 /// <param name="memoryCache">Instance of the <see cref="IMemoryCache"/> interface.</param>
 /// <param name="xtreamClient">Instance of the <see cref="IXtreamClient"/> interface.</param>
 /// <param name="logger">Instance of the <see cref="ILogger"/> interface.</param>
-public partial class SportsService(
+public sealed partial class SportsService(
     IHttpClientFactory httpClientFactory,
     IMemoryCache memoryCache,
     IXtreamClient xtreamClient,
-    ILogger<SportsService> logger)
+    ILogger<SportsService> logger) : IDisposable
 {
     private const string BaseUrl = "https://site.api.espn.com/apis/site/v2/sports/";
 
-    private static readonly TimeSpan _matchesLifetime = TimeSpan.FromMinutes(5);
-
     private readonly object _snapshotLock = new();
+    private readonly SemaphoreSlim _computeLock = new(1, 1);
     private Snapshot? _snapshot;
     private int _refreshing;
     private int _generation;
@@ -237,79 +236,81 @@ public partial class SportsService(
     }
 
     /// <summary>
-    /// Gets, for every enabled dynamic rule which shows a folder or is linked to a team,
-    /// the streams it matches and the game each stream shows. Cached for a few minutes.
+    /// Gets, for every enabled dynamic rule which shows a team library or is linked to a team,
+    /// the streams it matches and the game each stream shows. This fetches the provider's stream list,
+    /// so it is computed only when a guide refresh starts or the configuration changes, and cached until then.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The matches per rule.</returns>
     public async Task<IReadOnlyList<RuleMatches>> GetRuleMatchesAsync(CancellationToken cancellationToken)
     {
-        Plugin plugin = Plugin.Instance;
-        PluginConfiguration config = plugin.Configuration;
-        string key = $"xtream-sports-rules-{plugin.DataVersion}-{Volatile.Read(ref _generation)}";
-        if (memoryCache.TryGetValue(key, out IReadOnlyList<RuleMatches>? cached) && cached is not null)
+        string version = GetCurrentVersion();
+        Snapshot? snapshot = ReadSnapshot();
+        if (snapshot?.Version == version)
         {
-            return cached;
+            return snapshot.Matches;
         }
 
-        List<DynamicChannelRule> rules = config.LiveTvDynamic
-            .Where(r => r.Enabled && !string.IsNullOrWhiteSpace(r.Keyword) && (r.ShowAsFolder || r.HasTeam))
-            .ToList();
-        List<RuleMatches> result = [];
-        if (rules.Count > 0)
+        await _computeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            List<StreamInfo> streams = await xtreamClient.GetLiveStreamsAsync(plugin.Creds, cancellationToken).ConfigureAwait(false);
-            HashSet<int> hidden = [.. config.LiveTvDynamicHidden];
-            DateTime now = DateTime.UtcNow;
-            foreach (DynamicChannelRule rule in rules)
+            snapshot = ReadSnapshot();
+            if (snapshot?.Version == version)
             {
-                TeamSchedule? schedule = rule.HasTeam
-                    ? await GetScheduleAsync(rule.League, rule.TeamId, cancellationToken).ConfigureAwait(false)
-                    : null;
-                List<MatchedChannel> matched = streams
-                    .Where(s => StreamService.IsDynamicMatch([rule], hidden, s))
-                    .Select(s => new MatchedChannel(s, schedule is null ? null : MatchGame(schedule, s.Name, now)))
-                    .ToList();
-                result.Add(new RuleMatches(rule, schedule, matched));
+                return snapshot.Matches;
             }
-        }
 
-        memoryCache.Set(key, (IReadOnlyList<RuleMatches>)result, DateTimeOffset.Now.Add(_matchesLifetime));
-        lock (_snapshotLock)
+            IReadOnlyList<RuleMatches> result;
+            try
+            {
+                result = await ComputeRuleMatchesAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Keep the previous matches until the next guide refresh rather than retrying on every request.
+                logger.LogWarning(ex, "Failed to match the streams of team rules; keeping the previous matches");
+                result = snapshot?.Matches ?? [];
+            }
+
+            lock (_snapshotLock)
+            {
+                _snapshot = new Snapshot(version, result);
+            }
+
+            return result;
+        }
+        finally
         {
-            _snapshot = new Snapshot(plugin.DataVersion, DateTime.UtcNow, result);
+            _computeLock.Release();
         }
+    }
 
-        return result;
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _computeLock.Dispose();
     }
 
     /// <summary>
-    /// Forgets the cached rule matches, so the next lookup fetches the current streams from the provider.
+    /// Marks the cached rule matches as outdated and recomputes them in the background, so the
+    /// provider's current streams are picked up. Until then, the previous matches keep being served.
     /// </summary>
     public void InvalidateMatches()
     {
         Interlocked.Increment(ref _generation);
-        lock (_snapshotLock)
-        {
-            _snapshot = null;
-        }
+        RefreshInBackground();
     }
 
     /// <summary>
-    /// Gets the most recent rule matches without waiting, for callers that must answer synchronously
-    /// (e.g. deciding which libraries a user sees). A stale snapshot is refreshed in the background;
-    /// only the very first call, or the first call after a configuration change, waits for the result.
+    /// Gets the cached rule matches without waiting, for callers that must answer synchronously
+    /// (e.g. deciding which libraries a user sees). Only the very first call waits for the matches;
+    /// outdated matches are served while they are recomputed in the background.
     /// </summary>
     /// <returns>The matches per rule.</returns>
     public IReadOnlyList<RuleMatches> GetRuleMatchesSnapshot()
     {
-        Snapshot? snapshot;
-        lock (_snapshotLock)
-        {
-            snapshot = _snapshot;
-        }
-
-        if (snapshot is null || snapshot.Version != Plugin.Instance.DataVersion)
+        Snapshot? snapshot = ReadSnapshot();
+        if (snapshot is null)
         {
             try
             {
@@ -317,31 +318,83 @@ public partial class SportsService(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to match streams of team rules");
-                return snapshot?.Matches ?? [];
+                logger.LogWarning(ex, "Failed to match the streams of team rules");
+                return [];
             }
         }
 
-        if (DateTime.UtcNow - snapshot.CreatedUtc > _matchesLifetime && Interlocked.Exchange(ref _refreshing, 1) == 0)
+        if (snapshot.Version != GetCurrentVersion())
         {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await GetRuleMatchesAsync(CancellationToken.None).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "Failed to refresh the matched streams of team rules");
-                }
-                finally
-                {
-                    Interlocked.Exchange(ref _refreshing, 0);
-                }
-            });
+            RefreshInBackground();
         }
 
         return snapshot.Matches;
+    }
+
+    private string GetCurrentVersion() => $"{Plugin.Instance.DataVersion}-{Volatile.Read(ref _generation)}";
+
+    private Snapshot? ReadSnapshot()
+    {
+        lock (_snapshotLock)
+        {
+            return _snapshot;
+        }
+    }
+
+    private void RefreshInBackground()
+    {
+        if (Interlocked.Exchange(ref _refreshing, 1) == 1)
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await GetRuleMatchesAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to refresh the matched streams of team rules");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _refreshing, 0);
+            }
+        });
+    }
+
+    private async Task<IReadOnlyList<RuleMatches>> ComputeRuleMatchesAsync(CancellationToken cancellationToken)
+    {
+        Plugin plugin = Plugin.Instance;
+        PluginConfiguration config = plugin.Configuration;
+        List<DynamicChannelRule> rules = config.LiveTvDynamic
+            .Where(r => r.Enabled && !string.IsNullOrWhiteSpace(r.Keyword) && (r.ShowAsFolder || r.HasTeam))
+            .ToList();
+        List<RuleMatches> result = [];
+        if (rules.Count == 0)
+        {
+            return result;
+        }
+
+        List<StreamInfo> streams = await xtreamClient.GetLiveStreamsAsync(plugin.Creds, cancellationToken).ConfigureAwait(false);
+        HashSet<int> hidden = [.. config.LiveTvDynamicHidden];
+        DateTime now = DateTime.UtcNow;
+        foreach (DynamicChannelRule rule in rules)
+        {
+            TeamSchedule? schedule = rule.HasTeam
+                ? await GetScheduleAsync(rule.League, rule.TeamId, cancellationToken).ConfigureAwait(false)
+                : null;
+            List<MatchedChannel> matched = streams
+                .Where(s => StreamService.IsDynamicMatch([rule], hidden, s))
+                .Select(s => new MatchedChannel(s, schedule is null ? null : MatchGame(schedule, s.Name, now)))
+                .ToList();
+            result.Add(new RuleMatches(rule, schedule, matched));
+        }
+
+        logger.LogInformation("Matched the provider's streams for {Count} team rules", result.Count);
+        return result;
     }
 
     private static TimeSpan GameDuration(string league) => league.Split('/')[0] switch
@@ -477,5 +530,5 @@ public partial class SportsService(
     [GeneratedRegex("^[A-Za-z0-9-]{1,20}$")]
     private static partial Regex TeamIdRegex();
 
-    private sealed record Snapshot(string Version, DateTime CreatedUtc, IReadOnlyList<RuleMatches> Matches);
+    private sealed record Snapshot(string Version, IReadOnlyList<RuleMatches> Matches);
 }

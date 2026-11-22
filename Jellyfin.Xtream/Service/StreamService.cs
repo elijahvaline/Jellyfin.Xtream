@@ -97,9 +97,10 @@ public partial class StreamService(IXtreamClient xtreamClient)
     public const int TeamFolderPrefix = 0x5d774c40;
 
     /// <summary>
-    /// The id prefix for stream items inside team folders.
+    /// The id prefix for stream items inside team libraries.
+    /// (0x5d774c41 was used by items whose saved media sources Jellyfin could not play.)
     /// </summary>
-    public const int TeamStreamPrefix = 0x5d774c41;
+    public const int TeamStreamPrefix = 0x5d774c43;
 
     /// <summary>
     /// The id prefix for TV guide entries created from team schedules.
@@ -377,6 +378,19 @@ public partial class StreamService(IXtreamClient xtreamClient)
             i2 = BitConverter.ToInt32(tmp, 8);
             i3 = BitConverter.ToInt32(tmp, 12);
         }
+    }
+
+    /// <summary>
+    /// Prepares a media source for a channel (as opposed to Live TV) item. Jellyfin only lets a user play
+    /// channel sources whose id is empty, the item's own id, or another library item's id; any other GUID
+    /// is filtered out, leaving nothing to play. An empty id makes Jellyfin assign the item's id.
+    /// </summary>
+    /// <param name="source">The media source.</param>
+    /// <returns>The same media source, without an id.</returns>
+    public static MediaSourceInfo ForChannelItem(MediaSourceInfo source)
+    {
+        source.Id = string.Empty;
+        return source;
     }
 
     /// <summary>

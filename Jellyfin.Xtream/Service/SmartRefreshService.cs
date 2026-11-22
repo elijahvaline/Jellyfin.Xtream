@@ -18,6 +18,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Data.Events;
 using Jellyfin.Xtream.Configuration;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Hosting;
@@ -32,10 +33,12 @@ namespace Jellyfin.Xtream.Service;
 /// </summary>
 /// <param name="taskManager">Instance of the <see cref="ITaskManager"/> interface.</param>
 /// <param name="sportsService">Instance of the <see cref="SportsService"/> class.</param>
+/// <param name="teamLibraryOrder">Instance of the <see cref="TeamLibraryOrder"/> class.</param>
 /// <param name="logger">Instance of the <see cref="ILogger"/> interface.</param>
 public sealed class SmartRefreshService(
     ITaskManager taskManager,
     SportsService sportsService,
+    TeamLibraryOrder teamLibraryOrder,
     ILogger<SmartRefreshService> logger) : IHostedService, IDisposable
 {
     private const string RefreshGuideTask = "Jellyfin.LiveTv.Guide.RefreshGuideScheduledTask";
@@ -59,6 +62,7 @@ public sealed class SmartRefreshService(
     {
         _timer = new Timer(OnTimer);
         taskManager.TaskCompleted += OnTaskCompleted;
+        taskManager.TaskExecuting += OnTaskExecuting;
 
         // Plan once the server has settled.
         _timer.Change(TimeSpan.FromMinutes(1), Timeout.InfiniteTimeSpan);
@@ -69,6 +73,7 @@ public sealed class SmartRefreshService(
     public Task StopAsync(CancellationToken cancellationToken)
     {
         taskManager.TaskCompleted -= OnTaskCompleted;
+        taskManager.TaskExecuting -= OnTaskExecuting;
         _timer?.Change(Timeout.Infinite, Timeout.Infinite);
         return Task.CompletedTask;
     }
@@ -139,6 +144,15 @@ public sealed class SmartRefreshService(
     private static string FormatOffset(TimeSpan offset) =>
         offset.TotalMinutes % 60 == 0 ? $"{offset.TotalHours:0} h" : $"{offset.TotalMinutes:0} min";
 
+    private void OnTaskExecuting(object? sender, GenericEventArgs<IScheduledTaskWorker> e)
+    {
+        // Every guide refresh, scheduled or smart, is when the team rules pick up the provider's current streams.
+        if (e.Argument.ScheduledTask.GetType().FullName == RefreshGuideTask)
+        {
+            sportsService.InvalidateMatches();
+        }
+    }
+
     private void OnTaskCompleted(object? sender, TaskCompletionEventArgs e)
     {
         if (e.Task.ScheduledTask.GetType().FullName == RefreshGuideTask)
@@ -172,8 +186,6 @@ public sealed class SmartRefreshService(
                 return;
             }
 
-            // Make sure the refresh sees the provider's current streams.
-            sportsService.InvalidateMatches();
             if (worker.State == TaskState.Idle)
             {
                 logger.LogInformation("Smart refresh: refreshing the guide ({Reason})", run.Reason);
@@ -192,6 +204,17 @@ public sealed class SmartRefreshService(
 
     private async Task PlanSafeAsync()
     {
+        try
+        {
+            // Runs at startup and after every guide refresh (which every configuration change triggers),
+            // so team libraries are moved to the front as soon as they are added or renamed.
+            await teamLibraryOrder.ApplyAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to move the team libraries to the front");
+        }
+
         try
         {
             await PlanAsync().ConfigureAwait(false);

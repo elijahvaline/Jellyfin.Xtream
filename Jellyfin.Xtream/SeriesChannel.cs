@@ -201,12 +201,12 @@ public class SeriesChannel(ILogger<SeriesChannel> logger) : IChannel, IDisableMe
         ParsedName parsedName = StreamService.ParseName(episode.Title);
         List<MediaSourceInfo> sources =
         [
-            Plugin.Instance.StreamService.GetMediaSourceInfo(
+            StreamService.ForChannelItem(Plugin.Instance.StreamService.GetMediaSourceInfo(
                 StreamType.Series,
                 episode.EpisodeId,
                 episode.ContainerExtension,
                 videoInfo: episode.Info?.Video,
-                audioInfo: episode.Info?.Audio)
+                audioInfo: episode.Info?.Audio))
         ];
 
         string? cover = episode.Info?.MovieImage;

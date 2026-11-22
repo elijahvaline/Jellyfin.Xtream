@@ -173,6 +173,10 @@ export default function (view) {
         setTimeout(() => markDirty(), 0);
       }
 
+      const teamsFirst = $('#TeamLibrariesFirst');
+      teamsFirst.checked = config.TeamLibrariesFirst !== false;
+      teamsFirst.onchange = () => markDirty();
+
       // Smart guide refresh.
       const smartEnabled = $('#SmartRefreshEnabled');
       const smartBefore = $('#SmartRefreshBefore');
@@ -469,6 +473,7 @@ export default function (view) {
           latest.LiveTvDynamicHidden = [...hidden];
           latest.SportsTimeZone = zoneSelect.value;
           latest.SmartRefreshEnabled = smartEnabled.checked;
+          latest.TeamLibrariesFirst = teamsFirst.checked;
           latest.SmartRefreshBeforeMinutes = Math.max(0, parseInt(smartBefore.value, 10) || 0);
           latest.SmartRefreshAfterMinutes = Math.max(0, parseInt(smartAfter.value, 10) || 0);
           return ApiClient.updatePluginConfiguration(pluginId, latest);

@@ -116,5 +116,10 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets how many minutes after a game starts the smart refresh runs again, to clean up.
     /// </summary>
     public int SmartRefreshAfterMinutes { get; set; } = 240;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether team libraries are moved to the front of every user's library order.
+    /// </summary>
+    public bool TeamLibrariesFirst { get; set; } = true;
 }
 #pragma warning restore CA2227
