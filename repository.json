@@ -8,6 +8,14 @@
     "owner": "elijahvaline",
     "versions": [
       {
+        "changelog": "- Fix: favorites added by dynamic rules were sometimes removed after playing the channel\n- New: \"Show as folder\" on dynamic rules creates team folders in the Xtream Teams channel\n- New: link a rule to a team (ESPN) for real game start times in the guide; team folders list game streams on game day\n- New: time zone setting for game days and times",
+        "checksum": "2c3bb23e5d99451da33a6fe33ac4dc17",
+        "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.7/jellyfin-xtream_0.8.1.7.zip",
+        "targetAbi": "12.4.0.0",
+        "timestamp": "2026-11-22T16:05:31Z",
+        "version": "0.8.1.7"
+      },
+      {
         "changelog": "- Dynamic channels: a rule can now have several keywords; a channel matches when its name contains all of them, in any order (e.g. `wisconsin hockey`). Use double quotes to keep a phrase together (e.g. `\"fox sports\" wisconsin`).",
         "checksum": "fa738a081f6da74d9f21986c7a7fd0a2",
         "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.6/jellyfin-xtream_0.8.1.6.zip",
