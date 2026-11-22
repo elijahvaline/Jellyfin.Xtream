@@ -8,6 +8,14 @@
     "owner": "elijahvaline",
     "versions": [
       {
+        "changelog": "- Smart guide refresh: for rules linked to a team, the TV guide also refreshes 1 hour before each game and 4 hours after it starts (configurable); the next planned run is shown on the Dynamic channels page",
+        "checksum": "6085b4eb62db055223a8f888a7d05127",
+        "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.9/jellyfin-xtream_0.8.1.9.zip",
+        "targetAbi": "12.4.0.0",
+        "timestamp": "2026-11-22T16:25:22Z",
+        "version": "0.8.1.9"
+      },
+      {
         "changelog": "- Team libraries: each rule with \"Show as team library\" gets its own library on the home screen with the team logo, shown only on game days (replaces the Xtream Teams channel)\n- Rule preview: click several categories without the preview refreshing",
         "checksum": "ddf251fe6e64c7236ba6c1323c4c7805",
         "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.8/jellyfin-xtream_0.8.1.8.zip",
