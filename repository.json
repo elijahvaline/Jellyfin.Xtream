@@ -8,6 +8,14 @@
     "owner": "elijahvaline",
     "versions": [
       {
+        "changelog": "- Fix: playing a stream from a team library failed with \"Playback Error\"\n- New: \"Show team libraries first\" puts team libraries at the front of the home screen (on by default)\n- Team libraries only re-read the provider's streams when the guide refreshes, not while browsing",
+        "checksum": "13e877a3dc4921667d54f43fdb01591a",
+        "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.10/jellyfin-xtream_0.8.1.10.zip",
+        "targetAbi": "12.4.0.0",
+        "timestamp": "2026-11-22T16:44:16Z",
+        "version": "0.8.1.10"
+      },
+      {
         "changelog": "- Smart guide refresh: for rules linked to a team, the TV guide also refreshes 1 hour before each game and 4 hours after it starts (configurable); the next planned run is shown on the Dynamic channels page",
         "checksum": "6085b4eb62db055223a8f888a7d05127",
         "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.9/jellyfin-xtream_0.8.1.9.zip",
