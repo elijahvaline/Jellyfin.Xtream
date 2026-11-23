@@ -98,9 +98,10 @@ public partial class StreamService(IXtreamClient xtreamClient)
 
     /// <summary>
     /// The id prefix for stream items inside team libraries.
-    /// (0x5d774c41 was used by items whose saved media sources Jellyfin could not play.)
+    /// (0x5d774c41 was used by items whose saved media sources Jellyfin could not play, and 0x5d774c43
+    /// by items saved before they were opened through Live TV.)
     /// </summary>
-    public const int TeamStreamPrefix = 0x5d774c43;
+    public const int TeamStreamPrefix = 0x5d774c44;
 
     /// <summary>
     /// The id prefix for TV guide entries created from team schedules.

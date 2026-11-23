@@ -21,9 +21,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Xtream.Configuration;
 using Jellyfin.Xtream.Service;
+using MediaBrowser.Common.Extensions;
 using MediaBrowser.Controller.Channels;
+using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.LiveTv;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Channels;
+using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.MediaInfo;
 using Microsoft.Extensions.Logging;
@@ -38,8 +42,15 @@ namespace Jellyfin.Xtream;
 /// <param name="slot">The zero-based slot index.</param>
 /// <param name="logger">Instance of the <see cref="ILogger"/> interface.</param>
 /// <param name="sportsService">Instance of the <see cref="SportsService"/> class.</param>
-public class TeamSlotChannel(int slot, ILogger<TeamSlotChannel> logger, SportsService sportsService) : IChannel, IDisableMediaSourceDisplay
+/// <param name="libraryManager">Instance of the <see cref="ILibraryManager"/> interface.</param>
+public class TeamSlotChannel(int slot, ILogger<TeamSlotChannel> logger, SportsService sportsService, ILibraryManager libraryManager) : IChannel, IDisableMediaSourceDisplay
 {
+    /// <summary>
+    /// The open token prefix that routes a media source to Jellyfin's Live TV media source provider:
+    /// the MD5 of its type name, as Jellyfin computes it.
+    /// </summary>
+    private static readonly string LiveTvProviderKey = "Jellyfin.LiveTv.LiveTvMediaSourceProvider".GetMD5().ToString("N", CultureInfo.InvariantCulture);
+
     /// <summary>
     /// The number of team slots, i.e. the maximum number of team libraries.
     /// </summary>
@@ -200,10 +211,10 @@ public class TeamSlotChannel(int slot, ILogger<TeamSlotChannel> logger, SportsSe
             .ThenBy(s => s.Game?.StartUtc)
             .ThenBy(s => s.Stream.Name, StringComparer.OrdinalIgnoreCase);
 
-    private static IEnumerable<ChannelItemInfo> CreateStreams(RuleMatches matches) =>
+    private IEnumerable<ChannelItemInfo> CreateStreams(RuleMatches matches) =>
         ListedStreams(matches, DateTime.UtcNow).Select((s, index) => CreateStream(matches, s, index));
 
-    private static ChannelItemInfo CreateStream(RuleMatches matches, MatchedChannel match, int index)
+    private ChannelItemInfo CreateStream(RuleMatches matches, MatchedChannel match, int index)
     {
         SportsGame? game = match.Game;
         string title = StreamService.ParseName(match.Stream.Name).Title;
@@ -231,8 +242,34 @@ public class TeamSlotChannel(int slot, ILogger<TeamSlotChannel> logger, SportsSe
             IsLiveStream = true,
             StartDate = game?.StartUtc,
             EndDate = game?.EndUtc,
-            MediaSources = [StreamService.ForChannelItem(Plugin.Instance.StreamService.GetMediaSourceInfo(StreamType.Live, match.Stream.StreamId))],
+            MediaSources = [CreateMediaSource(match.Stream.StreamId)],
         };
+    }
+
+    /// <summary>
+    /// Creates the media source of a team stream. Played straight from the provider URL, Jellyfin knows nothing
+    /// about the stream (codecs, resolution, bitrate) and treats it like a file, so the web player can take
+    /// minutes to start. When the stream is also a Live TV channel, the source instead asks Jellyfin to open
+    /// it through Live TV: the same restream and probe as playing the channel from the guide.
+    /// </summary>
+    private MediaSourceInfo CreateMediaSource(int streamId)
+    {
+        MediaSourceInfo source = StreamService.ForChannelItem(Plugin.Instance.StreamService.GetMediaSourceInfo(StreamType.Live, streamId));
+        string externalId = StreamService.ToGuid(StreamService.LiveTvPrefix, streamId, 0, 0).ToString();
+
+        // Jellyfin's internal Live TV channel id (LiveTvDtoService.GetInternalChannelId).
+        Guid channelId = libraryManager.GetNewItemId($"{LiveTvService.ServiceName}{externalId}4".ToLowerInvariant(), typeof(LiveTvChannel));
+        if (libraryManager.GetItemById(channelId) is not LiveTvChannel)
+        {
+            logger.LogDebug("Stream {StreamId} is not a Live TV channel; team item plays the provider URL", streamId);
+            return source;
+        }
+
+        string channel = channelId.ToString("N", CultureInfo.InvariantCulture);
+        source.RequiresOpening = true;
+        source.RequiresClosing = true;
+        source.OpenToken = $"{LiveTvProviderKey}_{nameof(LiveTvChannel)}_{channel}_{channel}";
+        return source;
     }
 
     private DynamicChannelRule? GetSlotRule(out string name)
