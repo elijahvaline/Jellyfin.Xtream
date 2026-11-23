@@ -8,6 +8,14 @@
     "owner": "elijahvaline",
     "versions": [
       {
+        "changelog": "Team libraries: streams now open through Live TV (restream + probe), so they start as fast as from the guide instead of taking minutes.",
+        "checksum": "f09d26d6a4f50c046041f59cfc4b334f",
+        "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.11/jellyfin-xtream_0.8.1.11.zip",
+        "targetAbi": "12.4.0.0",
+        "timestamp": "2026-11-23T03:50:51Z",
+        "version": "0.8.1.11"
+      },
+      {
         "changelog": "- Fix: playing a stream from a team library failed with \"Playback Error\"\n- New: \"Show team libraries first\" puts team libraries at the front of the home screen (on by default)\n- Team libraries only re-read the provider's streams when the guide refreshes, not while browsing",
         "checksum": "13e877a3dc4921667d54f43fdb01591a",
         "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.10/jellyfin-xtream_0.8.1.10.zip",
