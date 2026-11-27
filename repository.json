@@ -8,6 +8,14 @@
     "owner": "elijahvaline",
     "versions": [
       {
+        "changelog": "IPTV kill switch (new **IPTV Connection** page in the dashboard sidebar) and security hardening:\n\n- Switch the IPTV connection off to stop all provider traffic, cut streams and remove provider items; switch it on to rescan immediately.\n- Fixed provider-controlled HTML in the admin dashboard (stored XSS).\n- Plugin traffic only reaches public internet addresses; provider redirects and image URLs into the local network are refused.\n- Credentials are escaped in URLs and no longer logged.\n- Security panel: HTTPS check with one-click switch, and a local-network exposure self-test.",
+        "checksum": "d460457117de7e0e73f38dfbf828c345",
+        "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.12/jellyfin-xtream_0.8.1.12.zip",
+        "targetAbi": "12.4.0.0",
+        "timestamp": "2026-11-27T02:44:26Z",
+        "version": "0.8.1.12"
+      },
+      {
         "changelog": "Team libraries: streams now open through Live TV (restream + probe), so they start as fast as from the guide instead of taking minutes.",
         "checksum": "f09d26d6a4f50c046041f59cfc4b334f",
         "sourceUrl": "https://github.com/elijahvaline/Jellyfin.Xtream/releases/download/v0.8.1.11/jellyfin-xtream_0.8.1.11.zip",
