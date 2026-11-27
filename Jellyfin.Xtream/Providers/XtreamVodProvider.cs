@@ -51,7 +51,7 @@ public class XtreamVodProvider(ILogger<VodChannel> logger, IProviderManager prov
     public async Task<ItemUpdateType> FetchAsync(Movie item, MetadataRefreshOptions options, CancellationToken cancellationToken)
     {
         string? idStr = item.GetProviderId(ProviderName);
-        if (idStr is not null)
+        if (idStr is not null && Plugin.IsIptvEnabled)
         {
             logger.LogDebug("Getting metadata for movie {Id}", idStr);
             int id = int.Parse(idStr, CultureInfo.InvariantCulture);

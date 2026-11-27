@@ -135,7 +135,7 @@ public class SeriesChannel(ILogger<SeriesChannel> logger) : IChannel, IDisableMe
             FolderType = ChannelFolderType.Series,
             Genres = GetGenres(series.Genre),
             Id = StreamService.ToGuid(StreamService.SeriesPrefix, series.CategoryId, series.SeriesId, 0).ToString(),
-            ImageUrl = series.Cover,
+            ImageUrl = NetworkGuard.SafeImageUrl(series.Cover),
             Name = parsedName.Title,
             SeriesName = parsedName.Title,
             People = GetPeople(series.Cast),
@@ -283,6 +283,6 @@ public class SeriesChannel(ILogger<SeriesChannel> logger) : IChannel, IDisableMe
     /// <inheritdoc />
     public bool IsEnabledFor(string userId)
     {
-        return Plugin.Instance.Configuration.IsSeriesVisible;
+        return Plugin.IsIptvEnabled && Plugin.Instance.Configuration.IsSeriesVisible;
     }
 }

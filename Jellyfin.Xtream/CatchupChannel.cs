@@ -128,7 +128,7 @@ public class CatchupChannel(ILogger<CatchupChannel> logger, IXtreamClient xtream
             items.Add(new ChannelItemInfo()
             {
                 Id = StreamService.ToGuid(StreamService.CatchupPrefix, channel.CategoryId ?? 0, channel.StreamId, 0).ToString(),
-                ImageUrl = channel.StreamIcon,
+                ImageUrl = NetworkGuard.SafeImageUrl(channel.StreamIcon),
                 Name = parsedName.Title,
                 Tags = new List<string>(parsedName.Tags),
                 Type = ChannelItemType.Folder,
@@ -160,7 +160,7 @@ public class CatchupChannel(ILogger<CatchupChannel> logger, IXtreamClient xtream
             items.Add(new()
             {
                 Id = StreamService.ToGuid(StreamService.CatchupPrefix, channel.CategoryId ?? 0, channel.StreamId, day).ToString(),
-                ImageUrl = channel.StreamIcon,
+                ImageUrl = NetworkGuard.SafeImageUrl(channel.StreamIcon),
                 Name = channelDay.ToLocalTime().ToString("ddd dd'-'MM'-'yyyy", CultureInfo.InvariantCulture),
                 Tags = new List<string>(parsedName.Tags),
                 Type = ChannelItemType.Folder,
@@ -250,6 +250,6 @@ public class CatchupChannel(ILogger<CatchupChannel> logger, IXtreamClient xtream
     /// <inheritdoc />
     public bool IsEnabledFor(string userId)
     {
-        return Plugin.Instance.Configuration.IsCatchupVisible;
+        return Plugin.IsIptvEnabled && Plugin.Instance.Configuration.IsCatchupVisible;
     }
 }

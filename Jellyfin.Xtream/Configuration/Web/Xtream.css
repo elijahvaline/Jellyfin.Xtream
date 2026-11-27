@@ -34,3 +34,17 @@
 .overrides-table thead th:first-child {
   width: 0;
 }
+
+.xtream-connection {
+  border-left: 4px solid #00a4dc;
+  padding: 0.25em 1em 0.5em;
+  margin-bottom: 2em;
+}
+
+.xtream-connection-off {
+  border-left-color: #cc3333;
+}
+
+.xtream-security td {
+  padding: 0.25em 1em 0.25em 0;
+}

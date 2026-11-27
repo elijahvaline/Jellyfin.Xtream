@@ -174,6 +174,11 @@ public partial class StreamService(IXtreamClient xtreamClient)
     /// <returns>IAsyncEnumerable{StreamInfo}.</returns>
     public async Task<IEnumerable<StreamInfo>> GetLiveStreams(CancellationToken cancellationToken)
     {
+        if (!Plugin.IsIptvEnabled)
+        {
+            return [];
+        }
+
         PluginConfiguration config = Plugin.Instance.Configuration;
 
         IEnumerable<StreamInfo> streams = await xtreamClient.GetLiveStreamsAsync(Plugin.Instance.Creds, cancellationToken).ConfigureAwait(false);
@@ -243,6 +248,11 @@ public partial class StreamService(IXtreamClient xtreamClient)
     /// <returns>IAsyncEnumerable{StreamInfo}.</returns>
     public async Task<IEnumerable<Category>> GetVodCategories(CancellationToken cancellationToken)
     {
+        if (!Plugin.IsIptvEnabled)
+        {
+            return [];
+        }
+
         List<Category> categories = await xtreamClient.GetVodCategoryAsync(Plugin.Instance.Creds, cancellationToken).ConfigureAwait(false);
         return categories.Where((Category category) => Plugin.Instance.Configuration.Vod.ContainsKey(category.CategoryId));
     }
@@ -255,7 +265,7 @@ public partial class StreamService(IXtreamClient xtreamClient)
     /// <returns>IAsyncEnumerable{StreamInfo}.</returns>
     public async Task<IEnumerable<StreamInfo>> GetVodStreams(int categoryId, CancellationToken cancellationToken)
     {
-        if (!Plugin.Instance.Configuration.Vod.ContainsKey(categoryId))
+        if (!Plugin.IsIptvEnabled || !Plugin.Instance.Configuration.Vod.ContainsKey(categoryId))
         {
             return new List<StreamInfo>();
         }
@@ -271,6 +281,11 @@ public partial class StreamService(IXtreamClient xtreamClient)
     /// <returns>IAsyncEnumerable{StreamInfo}.</returns>
     public async Task<IEnumerable<Category>> GetSeriesCategories(CancellationToken cancellationToken)
     {
+        if (!Plugin.IsIptvEnabled)
+        {
+            return [];
+        }
+
         List<Category> categories = await xtreamClient.GetSeriesCategoryAsync(Plugin.Instance.Creds, cancellationToken).ConfigureAwait(false);
         return categories.Where((Category category) => Plugin.Instance.Configuration.Series.ContainsKey(category.CategoryId));
     }
@@ -283,7 +298,7 @@ public partial class StreamService(IXtreamClient xtreamClient)
     /// <returns>IAsyncEnumerable{StreamInfo}.</returns>
     public async Task<IEnumerable<Series>> GetSeries(int categoryId, CancellationToken cancellationToken)
     {
-        if (!Plugin.Instance.Configuration.Series.ContainsKey(categoryId))
+        if (!Plugin.IsIptvEnabled || !Plugin.Instance.Configuration.Series.ContainsKey(categoryId))
         {
             return new List<Series>();
         }
@@ -300,6 +315,11 @@ public partial class StreamService(IXtreamClient xtreamClient)
     /// <returns>IAsyncEnumerable{StreamInfo}.</returns>
     public async Task<IEnumerable<Tuple<SeriesStreamInfo, int>>> GetSeasons(int seriesId, CancellationToken cancellationToken)
     {
+        if (!Plugin.IsIptvEnabled)
+        {
+            return [];
+        }
+
         SeriesStreamInfo series = await xtreamClient.GetSeriesStreamsBySeriesAsync(Plugin.Instance.Creds, seriesId, cancellationToken).ConfigureAwait(false);
         int categoryId = series.Info.CategoryId;
         if (!IsConfigured(Plugin.Instance.Configuration.Series, categoryId, seriesId))
@@ -319,6 +339,11 @@ public partial class StreamService(IXtreamClient xtreamClient)
     /// <returns>IAsyncEnumerable{StreamInfo}.</returns>
     public async Task<IEnumerable<Tuple<SeriesStreamInfo, Season?, Episode>>> GetEpisodes(int seriesId, int seasonId, CancellationToken cancellationToken)
     {
+        if (!Plugin.IsIptvEnabled)
+        {
+            return [];
+        }
+
         SeriesStreamInfo series = await xtreamClient.GetSeriesStreamsBySeriesAsync(Plugin.Instance.Creds, seriesId, cancellationToken).ConfigureAwait(false);
         Season? season = series.Seasons.FirstOrDefault(s => s.SeasonId == seasonId);
         return series.Episodes[seasonId].Select((Episode episode) => new Tuple<SeriesStreamInfo, Season?, Episode>(series, season, episode));
@@ -427,8 +452,12 @@ public partial class StreamService(IXtreamClient xtreamClient)
                 break;
         }
 
+        // No playback URL exists while the connection is off, so nothing can be played from the provider.
+        Plugin.EnsureIptvEnabled();
         PluginConfiguration config = Plugin.Instance.Configuration;
-        string uri = $"{config.BaseUrl}{prefix}/{config.Username}/{config.Password}/{id}";
+        string username = Uri.EscapeDataString(config.Username);
+        string password = Uri.EscapeDataString(config.Password);
+        string uri = $"{config.BaseUrl}{prefix}/{username}/{password}/{id}";
         if (!string.IsNullOrEmpty(extension))
         {
             uri += $".{extension}";
@@ -437,7 +466,7 @@ public partial class StreamService(IXtreamClient xtreamClient)
         if (type == StreamType.CatchUp)
         {
             string? startString = start?.ToString("yyyy'-'MM'-'dd':'HH'-'mm", CultureInfo.InvariantCulture);
-            uri = $"{config.BaseUrl}/streaming/timeshift.php?username={config.Username}&password={config.Password}&stream={id}&start={startString}&duration={durationMinutes}";
+            uri = $"{config.BaseUrl}/streaming/timeshift.php?username={username}&password={password}&stream={id}&start={startString}&duration={durationMinutes}";
         }
 
         bool isLive = type == StreamType.Live;

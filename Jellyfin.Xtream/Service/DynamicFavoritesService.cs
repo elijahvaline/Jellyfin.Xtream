@@ -132,6 +132,12 @@ public class DynamicFavoritesService(
 
     private async Task SyncAsync(CancellationToken cancellationToken)
     {
+        // While the IPTV connection is off the provider's streams are unknown: leave the favorites as they are.
+        if (!Plugin.IsIptvEnabled)
+        {
+            return;
+        }
+
         Plugin plugin = Plugin.Instance;
         List<DynamicChannelRule> rules = plugin.Configuration.LiveTvDynamic
             .Where(r => r.Enabled && r.Favorite && !string.IsNullOrWhiteSpace(r.Keyword))

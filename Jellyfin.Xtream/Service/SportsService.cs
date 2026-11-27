@@ -48,6 +48,8 @@ public sealed partial class SportsService(
 {
     private const string BaseUrl = "https://site.api.espn.com/apis/site/v2/sports/";
 
+    private readonly Lazy<HttpClient> _client = new(() => GuardedHttp.CreateLike(httpClientFactory, stream: false));
+
     private readonly object _snapshotLock = new();
     private readonly SemaphoreSlim _computeLock = new(1, 1);
     private Snapshot? _snapshot;
@@ -244,6 +246,11 @@ public sealed partial class SportsService(
     /// <returns>The matches per rule.</returns>
     public async Task<IReadOnlyList<RuleMatches>> GetRuleMatchesAsync(CancellationToken cancellationToken)
     {
+        if (!Plugin.IsIptvEnabled)
+        {
+            return [];
+        }
+
         string version = GetCurrentVersion();
         Snapshot? snapshot = ReadSnapshot();
         if (snapshot?.Version == version)
@@ -309,6 +316,11 @@ public sealed partial class SportsService(
     /// <returns>The matches per rule.</returns>
     public IReadOnlyList<RuleMatches> GetRuleMatchesSnapshot()
     {
+        if (!Plugin.IsIptvEnabled)
+        {
+            return [];
+        }
+
         Snapshot? snapshot = ReadSnapshot();
         if (snapshot is null)
         {
@@ -455,7 +467,7 @@ public sealed partial class SportsService(
 
     private async Task<JsonDocument> FetchAsync(string path, CancellationToken cancellationToken)
     {
-        HttpClient client = httpClientFactory.CreateClient(NamedClient.Default);
+        HttpClient client = _client.Value;
         using Stream stream = await client.GetStreamAsync(new Uri(BaseUrl + path), cancellationToken).ConfigureAwait(false);
         return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
     }

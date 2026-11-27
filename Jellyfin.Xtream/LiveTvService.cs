@@ -70,7 +70,7 @@ public class LiveTvService(IServerApplicationHost appHost, IHttpClientFactory ht
             {
                 Id = StreamService.ToGuid(StreamService.LiveTvPrefix, channel.StreamId, 0, 0).ToString(),
                 Number = channel.Num.ToString(CultureInfo.InvariantCulture),
-                ImageUrl = channel.StreamIcon,
+                ImageUrl = NetworkGuard.SafeImageUrl(channel.StreamIcon),
                 Name = parsed.Title,
                 Tags = parsed.Tags,
             });
@@ -163,6 +163,11 @@ public class LiveTvService(IServerApplicationHost appHost, IHttpClientFactory ht
     /// <inheritdoc />
     public async Task<IEnumerable<ProgramInfo>> GetProgramsAsync(string channelId, DateTime startDateUtc, DateTime endDateUtc, CancellationToken cancellationToken)
     {
+        if (!Plugin.IsIptvEnabled)
+        {
+            return [];
+        }
+
         Guid guid = Guid.Parse(channelId);
         StreamService.FromGuid(guid, out int prefix, out int streamId, out int _, out int _);
         if (prefix != StreamService.LiveTvPrefix)
@@ -243,7 +248,7 @@ public class LiveTvService(IServerApplicationHost appHost, IHttpClientFactory ht
                     IsSports = true,
                     IsLive = true,
                     Genres = ["Sports"],
-                    ImageUrl = matches.Schedule?.Team.LogoUrl,
+                    ImageUrl = NetworkGuard.SafeImageUrl(matches.Schedule?.Team.LogoUrl),
                 };
             }
         }

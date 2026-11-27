@@ -132,7 +132,7 @@ public class VodChannel(ILogger<VodChannel> logger) : IChannel, IDisableMediaSou
             ContentType = ChannelMediaContentType.Movie,
             DateCreated = DateTimeOffset.FromUnixTimeSeconds(added).DateTime,
             Id = $"{StreamService.StreamPrefix}{stream.StreamId}",
-            ImageUrl = stream.StreamIcon,
+            ImageUrl = NetworkGuard.SafeImageUrl(stream.StreamIcon),
             IsLiveStream = false,
             MediaSources = sources,
             MediaType = ChannelMediaType.Video,
@@ -172,6 +172,6 @@ public class VodChannel(ILogger<VodChannel> logger) : IChannel, IDisableMediaSou
     /// <inheritdoc />
     public bool IsEnabledFor(string userId)
     {
-        return Plugin.Instance.Configuration.IsVodVisible;
+        return Plugin.IsIptvEnabled && Plugin.Instance.Configuration.IsVodVisible;
     }
 }

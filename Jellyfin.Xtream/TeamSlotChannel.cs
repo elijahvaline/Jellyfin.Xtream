@@ -132,7 +132,7 @@ public class TeamSlotChannel(int slot, ILogger<TeamSlotChannel> logger, SportsSe
     /// <inheritdoc />
     public Task<DynamicImageResponse> GetChannelImage(ImageType type, CancellationToken cancellationToken)
     {
-        string? logo = type == ImageType.Primary ? GetMatches()?.Schedule?.Team.LogoUrl : null;
+        string? logo = type == ImageType.Primary ? NetworkGuard.SafeImageUrl(GetMatches()?.Schedule?.Team.LogoUrl) : null;
         return Task.FromResult(string.IsNullOrEmpty(logo)
             ? new DynamicImageResponse { HasImage = false }
             : new DynamicImageResponse { HasImage = true, Path = logo, Protocol = MediaProtocol.Http });
@@ -146,7 +146,7 @@ public class TeamSlotChannel(int slot, ILogger<TeamSlotChannel> logger, SportsSe
     {
         try
         {
-            if (GetSlotRule(out _) is not DynamicChannelRule rule)
+            if (!Plugin.IsIptvEnabled || GetSlotRule(out _) is not DynamicChannelRule rule)
             {
                 return false;
             }
@@ -235,7 +235,7 @@ public class TeamSlotChannel(int slot, ILogger<TeamSlotChannel> logger, SportsSe
             Name = title,
             Overview = overview,
             IndexNumber = index + 1,
-            ImageUrl = string.IsNullOrEmpty(match.Stream.StreamIcon) ? matches.Schedule?.Team.LogoUrl : match.Stream.StreamIcon,
+            ImageUrl = NetworkGuard.SafeImageUrl(string.IsNullOrEmpty(match.Stream.StreamIcon) ? matches.Schedule?.Team.LogoUrl : match.Stream.StreamIcon),
             ContentType = ChannelMediaContentType.TvExtra,
             MediaType = ChannelMediaType.Video,
             Type = ChannelItemType.Media,

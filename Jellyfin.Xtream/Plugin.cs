@@ -69,6 +69,11 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public ConnectionInfo Creds => new(Configuration.BaseUrl, Configuration.Username, Configuration.Password);
 
     /// <summary>
+    /// Gets a value indicating whether the plugin may connect to the IPTV provider.
+    /// </summary>
+    public static bool IsIptvEnabled => _instance?.Configuration.IptvEnabled ?? false;
+
+    /// <summary>
     /// Gets the data version used to trigger a cache invalidation on plugin update or config change.
     /// </summary>
     public string DataVersion => Assembly.GetCallingAssembly().GetName().Version?.ToString() + Configuration.GetHashCode();
@@ -90,6 +95,18 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// </summary>
     public TaskService TaskService { get; init; }
 
+    /// <summary>
+    /// Throws unless the plugin may connect to the IPTV provider. Every request to the provider passes through here.
+    /// </summary>
+    /// <exception cref="IptvDisabledException">The IPTV connection is switched off.</exception>
+    public static void EnsureIptvEnabled()
+    {
+        if (!IsIptvEnabled)
+        {
+            throw new IptvDisabledException();
+        }
+    }
+
     private static PluginPageInfo CreateStatic(string name) => new()
     {
         Name = name,
@@ -105,6 +122,15 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     {
         return new[]
         {
+            new PluginPageInfo
+            {
+                Name = "XtreamSwitch.html",
+                DisplayName = "IPTV Connection",
+                EmbeddedResourcePath = $"{typeof(Plugin).Namespace}.Configuration.Web.XtreamSwitch.html",
+                EnableInMainMenu = true,
+                MenuIcon = "power_settings_new",
+            },
+            CreateStatic("XtreamSwitch.js"),
             CreateStatic("XtreamCredentials.html"),
             CreateStatic("XtreamCredentials.js"),
             CreateStatic("Xtream.css"),

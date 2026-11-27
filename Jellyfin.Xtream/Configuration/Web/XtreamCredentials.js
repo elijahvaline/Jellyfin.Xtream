@@ -17,6 +17,19 @@ export default function (view) {
       Dashboard.hideLoadingMsg();
     });
 
+    let iptvOn = true;
+    Xtream.fetchJson('Xtream/Connection').then((r) => {
+      iptvOn = r.Enabled;
+      view.querySelector('#IptvConnectionSummaryText').textContent = r.Enabled
+        ? 'IPTV connection: on.'
+        : 'IPTV connection: switched off. The provider is not contacted.';
+      view.querySelector('#IptvConnectionSummary').classList.toggle('xtream-connection-off', !r.Enabled);
+    });
+    view.querySelector('#IptvConnectionManage').onclick = (e) => {
+      e.preventDefault();
+      Dashboard.navigate('configurationpage?name=XtreamSwitch.html');
+    };
+
     const reloadStatus = () => {
       const status = view.querySelector("#ProviderStatus");
       const expiry = view.querySelector("#ProviderExpiry");
@@ -35,7 +48,7 @@ export default function (view) {
         timezone.innerText = response.ServerTimezone;
         mpegTs.innerText = response.SupportsMpegTs;
       }).catch((_) => {
-        status.innerText = "Failed. Check server logs.";
+        status.innerText = iptvOn ? "Failed. Check server logs." : "IPTV connection is switched off.";
         expiry.innerText = "";
         cons.innerText = "";
         maxCons.innerText = "";

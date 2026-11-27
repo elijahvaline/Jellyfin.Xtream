@@ -14,12 +14,14 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Xtream.Client;
 using MediaBrowser.Common.Net;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Library;
@@ -45,6 +47,10 @@ public class Restream : ILiveStream, IDirectStreamProvider, IDisposable
         HttpStatusCode.PermanentRedirect,
         HttpStatusCode.Redirect,
     ];
+
+    private static readonly ConcurrentDictionary<string, Restream> _active = new();
+
+    private static HttpClient? _streamClient;
 
     private readonly WrappedBufferStream _buffer;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -99,9 +105,56 @@ public class Restream : ILiveStream, IDirectStreamProvider, IDisposable
     /// <inheritdoc />
     public string UniqueId { get; init; }
 
+    /// <summary>
+    /// Cuts every open restream from the provider, e.g. when the IPTV connection is switched off.
+    /// </summary>
+    /// <returns>The number of restreams cut.</returns>
+    public static int CutAll()
+    {
+        int count = 0;
+        foreach (Restream restream in _active.Values)
+        {
+            try
+            {
+                restream._tokenSource.Cancel();
+                count++;
+            }
+            catch (ObjectDisposedException)
+            {
+                // Already closed.
+            }
+
+            _active.TryRemove(restream.UniqueId, out _);
+        }
+
+        return count;
+    }
+
+    /// <summary>
+    /// Gets the shared client for streams, which only connects to public internet addresses.
+    /// </summary>
+    private static HttpClient StreamClient(IHttpClientFactory factory)
+    {
+        if (Volatile.Read(ref _streamClient) is HttpClient client)
+        {
+            return client;
+        }
+
+        HttpClient created = GuardedHttp.CreateLike(factory, stream: true);
+        HttpClient? existing = Interlocked.CompareExchange(ref _streamClient, created, null);
+        if (existing is not null)
+        {
+            created.Dispose();
+            return existing;
+        }
+
+        return created;
+    }
+
     /// <inheritdoc />
     public async Task Open(CancellationToken openCancellationToken)
     {
+        Plugin.EnsureIptvEnabled();
         if (_inputStream != null)
         {
             _logger.LogWarning("Restream for channel {ChannelId} is already open.", MediaSource.Id);
@@ -112,19 +165,36 @@ public class Restream : ILiveStream, IDirectStreamProvider, IDisposable
         _logger.LogInformation("Starting restream for channel {ChannelId}.", channelId);
 
         // Response stream is disposed manually.
-        HttpResponseMessage response = await _httpClientFactory.CreateClient(NamedClient.Default)
+        HttpResponseMessage response = await StreamClient(_httpClientFactory)
             .GetAsync(_url, HttpCompletionOption.ResponseHeadersRead, openCancellationToken)
             .ConfigureAwait(true);
-        _logger.LogDebug("Stream for channel {ChannelId} using url {Url}", channelId, _url);
+        _logger.LogDebug("Stream for channel {ChannelId} using host {Host}", channelId, NetworkGuard.Describe(_url));
 
         // Handle a manual redirect in the case of a HTTPS to HTTP downgrade.
         if (_redirects.Contains(response.StatusCode))
         {
-            _logger.LogDebug("Stream for channel {ChannelId} redirected to url {Url}", channelId, response.Headers.Location);
-            response = await _httpClientFactory.CreateClient(NamedClient.Default)
-                .GetAsync(response.Headers.Location, HttpCompletionOption.ResponseHeadersRead, openCancellationToken)
+            Uri? location = response.Headers.Location;
+            if (location is not null && !location.IsAbsoluteUri)
+            {
+                location = new Uri(new Uri(_url), location);
+            }
+
+            _logger.LogDebug("Stream for channel {ChannelId} redirected to host {Host}", channelId, NetworkGuard.Describe(location?.ToString()));
+            response.Dispose();
+
+            // The provider decides where this points. Never let it aim the server at the local network.
+            if (location is null || !await NetworkGuard.IsPublicHttpAsync(location, openCancellationToken).ConfigureAwait(false))
+            {
+                _logger.LogWarning("Refused redirect of channel {ChannelId} to non-public address {Host}", channelId, NetworkGuard.Describe(location?.ToString()));
+                throw new HttpRequestException("The provider redirected the stream to a local or invalid address.");
+            }
+
+            response = await StreamClient(_httpClientFactory)
+                .GetAsync(location, HttpCompletionOption.ResponseHeadersRead, openCancellationToken)
                 .ConfigureAwait(true);
         }
+
+        _active[UniqueId] = this;
 
         _inputStream = await response.Content.ReadAsStreamAsync(CancellationToken.None).ConfigureAwait(false);
         _copyTask = _inputStream.CopyToAsync(_buffer, _tokenSource.Token)
@@ -132,6 +202,7 @@ public class Restream : ILiveStream, IDirectStreamProvider, IDisposable
                 (Task t) =>
                 {
                     _logger.LogInformation("Restream for channel {ChannelId} finished with state {Status}", MediaSource.Id, t.Status);
+                    _active.TryRemove(UniqueId, out _);
                     _inputStream.Close();
                     _inputStream = null;
                 },
@@ -173,6 +244,7 @@ public class Restream : ILiveStream, IDirectStreamProvider, IDisposable
     {
         if (disposing)
         {
+            _active.TryRemove(UniqueId, out _);
             _inputStream?.Dispose();
             _buffer.Dispose();
             _tokenSource.Dispose();

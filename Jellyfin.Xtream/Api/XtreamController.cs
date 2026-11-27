@@ -16,6 +16,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Net.Mime;
 using System.Threading;
 using System.Threading.Tasks;
@@ -27,6 +28,7 @@ using Jellyfin.Xtream.Service;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 
 namespace Jellyfin.Xtream.Api;
 
@@ -39,6 +41,7 @@ namespace Jellyfin.Xtream.Api;
 [ApiController]
 [Route("[controller]")]
 [Produces(MediaTypeNames.Application.Json)]
+[IptvDisabledFilter]
 public class XtreamController(IXtreamClient xtreamClient, SportsService sportsService, SmartRefreshService smartRefreshService) : ControllerBase
 {
     private static CategoryResponse CreateCategoryResponse(Category category) =>
@@ -70,11 +73,138 @@ public class XtreamController(IXtreamClient xtreamClient, SportsService sportsSe
         new()
         {
             Id = stream.StreamId,
-            LogoUrl = stream.StreamIcon,
+            LogoUrl = NetworkGuard.SafeImageUrl(stream.StreamIcon) ?? string.Empty,
             Name = stream.Name,
             Number = stream.Num,
             CategoryId = stream.CategoryId,
         };
+
+    /// <summary>
+    /// Gets whether the plugin may connect to the IPTV provider.
+    /// </summary>
+    /// <returns>The state of the IPTV connection.</returns>
+    [Authorize(Policy = "RequiresElevation")]
+    [HttpGet("Connection")]
+    public ActionResult<ConnectionResponse> GetConnection()
+    {
+        return Ok(new ConnectionResponse { Enabled = Plugin.IsIptvEnabled });
+    }
+
+    /// <summary>
+    /// Switches the connection to the IPTV provider on or off. Off: nothing is sent to the provider, open streams
+    /// are cut and the provider's items are removed. On: the guide and channels are refreshed from the provider at once.
+    /// </summary>
+    /// <param name="enabled">Whether the plugin may connect to the provider.</param>
+    /// <returns>The new state of the IPTV connection.</returns>
+    [Authorize(Policy = "RequiresElevation")]
+    [HttpPost("Connection")]
+    public ActionResult<ConnectionResponse> SetConnection([FromQuery] bool enabled)
+    {
+        Plugin plugin = Plugin.Instance;
+        PluginConfiguration config = plugin.Configuration;
+        config.IptvEnabled = enabled;
+
+        // Saves, raises ConfigurationChanged (cuts streams when off) and queues the guide and channel refreshes.
+        plugin.UpdateConfiguration(config);
+        return Ok(new ConnectionResponse { Enabled = Plugin.IsIptvEnabled });
+    }
+
+    /// <summary>
+    /// Gets the security status: IPTV connection, HTTPS use and whether Jellyfin can reach the local network.
+    /// </summary>
+    /// <param name="recheck">Whether to run the local network check again.</param>
+    /// <param name="cancellationToken">The cancellation token for cancelling requests.</param>
+    /// <returns>The security status.</returns>
+    [Authorize(Policy = "RequiresElevation")]
+    [HttpGet("Security")]
+    public async Task<ActionResult<SecurityResponse>> GetSecurity([FromQuery] bool recheck, CancellationToken cancellationToken)
+    {
+        LanExposureResult lan = !recheck && LanExposureCheck.Last is LanExposureResult last
+            ? last
+            : await LanExposureCheck.RunAsync(cancellationToken).ConfigureAwait(false);
+        return Ok(new SecurityResponse
+        {
+            IptvEnabled = Plugin.IsIptvEnabled,
+            ProviderUsesHttps = Uri.TryCreate(Plugin.Instance.Configuration.BaseUrl, UriKind.Absolute, out Uri? baseUri)
+                && baseUri.Scheme == Uri.UriSchemeHttps,
+            LanReachable = lan.Reachable,
+            LanDetail = lan.Detail,
+        });
+    }
+
+    /// <summary>
+    /// Checks whether the provider can be reached over HTTPS with a valid certificate, and optionally switches to it.
+    /// </summary>
+    /// <param name="apply">Whether to switch the base URL to HTTPS when it works.</param>
+    /// <param name="cancellationToken">The cancellation token for cancelling requests.</param>
+    /// <returns>The result of the check.</returns>
+    [Authorize(Policy = "RequiresElevation")]
+    [HttpPost("Security/Https")]
+    public async Task<ActionResult<HttpsCheckResponse>> CheckHttps([FromQuery] bool apply, CancellationToken cancellationToken)
+    {
+        Plugin plugin = Plugin.Instance;
+        PluginConfiguration config = plugin.Configuration;
+        if (!Uri.TryCreate(config.BaseUrl, UriKind.Absolute, out Uri? current))
+        {
+            return Ok(new HttpsCheckResponse { Detail = "The base URL is not a valid URL." });
+        }
+
+        if (current.Scheme == Uri.UriSchemeHttps)
+        {
+            return Ok(new HttpsCheckResponse { Available = true, Url = config.BaseUrl, Detail = "The provider is already reached over HTTPS." });
+        }
+
+        // Same port first (some providers serve both on one port), then the standard HTTPS port.
+        List<string> candidates = [];
+        if (!current.IsDefaultPort)
+        {
+            candidates.Add($"https://{current.Host}:{current.Port}");
+        }
+
+        candidates.Add($"https://{current.Host}");
+        foreach (string candidate in candidates)
+        {
+            try
+            {
+                using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeout.CancelAfter(TimeSpan.FromSeconds(15));
+                PlayerApi info = await xtreamClient.GetUserAndServerInfoAsync(
+                    new ConnectionInfo(candidate, config.Username, config.Password),
+                    timeout.Token).ConfigureAwait(false);
+                if (info.UserInfo.Auth != 1)
+                {
+                    continue;
+                }
+
+                bool applied = false;
+                if (apply)
+                {
+                    config.BaseUrl = candidate;
+                    plugin.UpdateConfiguration(config);
+                    applied = true;
+                }
+
+                return Ok(new HttpsCheckResponse
+                {
+                    Available = true,
+                    Applied = applied,
+                    Url = candidate,
+                    Detail = applied
+                        ? $"Switched to {candidate}. The guide and channels are being refreshed."
+                        : $"The provider works over HTTPS at {candidate}.",
+                });
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+            {
+                // Not available on this address: try the next one.
+            }
+        }
+
+        return Ok(new HttpsCheckResponse
+        {
+            Detail = "The provider does not answer over HTTPS with a valid certificate. Keep using HTTP, or ask the provider for an HTTPS address.",
+        });
+    }
 
     /// <summary>
     /// Test the configured provider.

@@ -26,6 +26,13 @@ namespace Jellyfin.Xtream.Configuration;
 public class PluginConfiguration : BasePluginConfiguration
 {
     /// <summary>
+    /// Gets or sets a value indicating whether the plugin may connect to the IPTV provider at all.
+    /// When off, no request is sent to the provider, active streams are cut and the provider's
+    /// channels and items disappear from the library at the next refresh.
+    /// </summary>
+    public bool IptvEnabled { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets the base url including protocol and trailing slash.
     /// </summary>
     public string BaseUrl { get; set; } = "https://example.com";

@@ -45,6 +45,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
 
         serviceCollection.AddSingleton<IPreRefreshProvider, XtreamVodProvider>();
         serviceCollection.AddHostedService<DynamicFavoritesService>();
+        serviceCollection.AddHostedService<IptvSwitchService>();
         serviceCollection.AddSingleton<TeamLibraryOrder>();
         serviceCollection.AddSingleton<SmartRefreshService>();
         serviceCollection.AddHostedService(sp => sp.GetRequiredService<SmartRefreshService>());

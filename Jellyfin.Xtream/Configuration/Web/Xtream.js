@@ -112,7 +112,7 @@ const createCategoryRow = (wrapper, category, loadItems) => {
   }
 
   td = document.createElement('td');
-  td.innerHTML = category.Name;
+  td.textContent = category.Name;
   tr.appendChild(td);
 
   td = document.createElement('td');

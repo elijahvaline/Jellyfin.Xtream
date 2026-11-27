@@ -1,0 +1,39 @@
+<div id="XtreamSwitchPage" data-role="page" class="page type-interior pluginConfigurationPage"
+  data-require="emby-input,emby-button,emby-checkbox" data-controller="__plugin/XtreamSwitch.js">
+  <div data-role="content">
+    <div class="content-primary">
+      <div id="IptvConnection" class="xtream-connection">
+        <h2>IPTV connection</h2>
+        <div class="checkboxContainer checkboxContainer-withDescription">
+          <label>
+            <input is="emby-checkbox" id="IptvEnabled" name="IptvEnabled" type="checkbox" />
+            <span>Connect to the IPTV provider</span>
+          </label>
+          <div class="fieldDescription checkboxFieldDescription">
+            Applies immediately. Off: the server sends nothing to the provider, playing IPTV streams stop, and all
+            Live TV, catch-up, VOD, series and team library items from the provider are removed.
+            On: the guide and channels are rescanned from the provider right away.
+          </div>
+          <div id="IptvConnectionState" class="fieldDescription"></div>
+        </div>
+        <h3>Security</h3>
+        <table class="xtream-security">
+          <tr>
+            <td>Provider connection</td>
+            <td id="SecurityHttps"></td>
+            <td><button id="SecurityHttpsCheck" type="button" is="emby-button" class="raised">Check HTTPS</button></td>
+          </tr>
+          <tr>
+            <td>Jellyfin &rarr; local network</td>
+            <td id="SecurityLan"></td>
+            <td><button id="SecurityLanCheck" type="button" is="emby-button" class="raised">Re-check</button></td>
+          </tr>
+        </table>
+        <div class="fieldDescription">
+          "Blocked" means a host firewall stops Jellyfin from opening connections to the other devices on your
+          network, so even a compromised Jellyfin (e.g. through a malicious stream) stays contained.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
